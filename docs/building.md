@@ -27,3 +27,5 @@ The output path is configured by the Maven Shade plugin in `pom.xml` and must re
 ## Supported target
 
 Rivet currently compiles for Paper 1.21.11 and Java 21. Runtime dependencies included by the project are shaded into the deployable JAR where required.
+
+Before deploying from an isolated checkout, compare its history with the working repository. Preserve previously delivered features, including verified local commits that have not reached `main`; excluding unrelated uncommitted edits must not remove those features from the server build.
