@@ -152,7 +152,7 @@ final class TreeFeller implements Listener {
         event.setCancelled(true);
         ItemStack dropTool = axe.clone();
         player.getInventory().setItemInMainHand(axe.damage(logs.size(), player));
-        animate(tree, dropTool, player);
+        animate(tree, dropTool, player, base.getY(), saplingFor(wood));
         plugin.messageActions().run(player, settings, "tree-feller.message", "actionbar",
             "<white>Felled <#f72a4c>%count%</#f72a4c> × <#f72a4c>%material%</#f72a4c></white>",
             Placeholder.unparsed("count", Integer.toString(logs.size())),
@@ -434,10 +434,13 @@ final class TreeFeller implements Listener {
         }
     }
 
-    private void animate(Set<Block> tree, ItemStack tool, Player player) {
+    private void animate(Set<Block> tree, ItemStack tool, Player player, int baseY, Material sapling) {
         Map<Integer, List<Piece>> layers = new HashMap<>();
         for (Block block : tree) {
-            Piece piece = new Piece(block, block.getBlockData(), List.copyOf(block.getDrops(tool, player)));
+            BlockData replacement = sapling != null && block.getY() == baseY
+                && isTreeTrunk(block.getType()) ? sapling.createBlockData() : null;
+            Piece piece = new Piece(block, block.getBlockData(),
+                List.copyOf(block.getDrops(tool, player)), replacement);
             layers.computeIfAbsent(block.getY(), ignored -> new ArrayList<>()).add(piece);
         }
         activeBlocks.addAll(tree);
@@ -472,6 +475,7 @@ final class TreeFeller implements Listener {
             return;
         }
         block.setType(Material.AIR, false);
+        replant(block, piece.replacement());
         piece.drops().forEach(drop -> player.getInventory().addItem(drop).values()
             .forEach(leftover -> block.getWorld().dropItemNaturally(block.getLocation(), leftover)));
         if (plugin.getConfig().getBoolean("effects.particles")
@@ -614,7 +618,24 @@ final class TreeFeller implements Listener {
             && (horizontal == 0 || vertical / (double) horizontal >= .5);
     }
 
-    private record Piece(Block block, BlockData data, List<ItemStack> drops) {
+    static Material saplingFor(Material wood) {
+        String species = wood.name().replaceFirst("^STRIPPED_", "")
+            .replaceFirst("_(LOG|WOOD|STEM|HYPHAE)$", "");
+        return switch (species) {
+            case "MANGROVE" -> Material.MANGROVE_PROPAGULE;
+            case "WARPED" -> Material.WARPED_FUNGUS;
+            case "CRIMSON" -> Material.CRIMSON_FUNGUS;
+            default -> Material.getMaterial(species + "_SAPLING");
+        };
+    }
+
+    static void replant(Block block, BlockData sapling) {
+        if (sapling != null && block.isEmpty() && block.canPlace(sapling)) {
+            block.setBlockData(sapling);
+        }
+    }
+
+    private record Piece(Block block, BlockData data, List<ItemStack> drops, BlockData replacement) {
     }
 
     private record LeafCandidate(Block block, int previousDistance) {
