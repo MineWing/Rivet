@@ -115,3 +115,5 @@
 - [Configuration](configuration.md)
 - [Permissions](permissions.md)
 - [Building from source](building.md)
+
+- [Autocrafter and beacon tools](automation-blocks.md)

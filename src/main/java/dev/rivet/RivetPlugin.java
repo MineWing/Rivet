@@ -96,6 +96,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     private final Map<WaterCropKey, PendingWaterCrop> pendingWaterCrops = new HashMap<>();
     private BukkitTask waterCropTask;
     private ChatModule chat;
+    private AutoCrafter autoCrafter;
+    private BeaconTools beaconTools;
     private AutoBreeder autoBreeder;
     private EggCapture eggCapture;
     private VillagerRerollModule villagerReroll;
@@ -160,6 +162,14 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             || moduleEnabled("tpa") || moduleEnabled("graves") || moduleEnabled("rtp")) {
             delayedTeleports = new DelayedTeleport(this);
             getServer().getPluginManager().registerEvents(delayedTeleports, this);
+        }
+        if (settings("gameplay").getBoolean("autocrafter.enabled", true)) {
+            autoCrafter = new AutoCrafter(this);
+            getServer().getPluginManager().registerEvents(autoCrafter, this);
+        }
+        if (settings("gameplay").getBoolean("beacon-tools.enabled", true)) {
+            beaconTools = new BeaconTools(this);
+            getServer().getPluginManager().registerEvents(beaconTools, this);
         }
         if (moduleEnabled("breeders")) {
             autoBreeder = new AutoBreeder(this);
@@ -327,6 +337,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         getServer().getOnlinePlayers().stream()
             .filter(player -> flightEnabled.contains(player.getUniqueId()))
             .forEach(this::disableFlight);
+        if (autoCrafter != null) autoCrafter.shutdown();
+        if (beaconTools != null) beaconTools.shutdown();
         if (autoBreeder != null) {
             autoBreeder.shutdown();
         }

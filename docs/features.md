@@ -106,3 +106,7 @@ Container restoration, container contents, other block-entity data, activation d
 ## Data and privacy
 
 Rivet stores ordinary gameplay state in local YAML files under `plugins/Rivet/data/` and compressed inventory snapshots in `plugins/Rivet/snapshots.db`. Chat and private messages are never stored. The [`/sameip`](commands.md#sameip) command compares current session addresses without saving or displaying the raw address. Rivet uses bStats for anonymous usage metrics; server owners can use the global bStats opt-out.
+
+## Autocrafter and beacon tools
+
+Craft a hopper-fed autocrafter with a recipe picker, or build and dismantle beacon pyramids using inventory materials. See [recipes and instructions](automation-blocks.md).
