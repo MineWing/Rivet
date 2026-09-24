@@ -12,7 +12,11 @@ Redstone   | Crafting table| Redstone
 Iron ingot | Barrel        | Iron ingot
 ```
 
-Place the barrel, then right-click it to select an output recipe. The menu shows shaped and shapeless crafting recipes, including distinct recipes for the same output. Use the arrows to browse pages, or click an item in your own inventory to filter recipes for that item. Click **Show all recipes** to clear the filter.
+Place the barrel, then right-click it to open the autocrafter menu. The top tabs group recipes into **All recipes**, **Building**, **Redstone & utility**, **Tools & equipment**, **Food**, **Ingredients** and **Custom recipes**. The selected tab glows. Use the footer arrows to browse each category, or click an item in your own inventory to find recipes for that output. Category tabs reset the item filter; **Clear item filter** removes it within the current category.
+
+Click a recipe to preview its ingredients in a crafting grid and see the output quantity. These are display items and cannot be taken. Click **Craft this recipe** to select it and start crafting. **Back to recipes** returns to the same category and page. The selected output glows in the recipe list. Click the current output in the footer to reopen its preview.
+
+The footer shows the current machine status, output direction and occupied storage slots. A hologram above the barrel shows its selected output and live status. It distinguishes missing ingredients, a full or blocked output, a refused transfer, a missing recipe and paused crafting. Existing autocrafters gain holograms when their chunks load. Holograms disappear when the block breaks or its chunk unloads and return when it loads again.
 
 The **Ingredient storage** button opens the barrel's inventory. Add ingredients yourself or feed them through hoppers. Sneak while holding a hopper to attach it. The barrel stores ingredients only; hoppers cannot pull them back out. You can remove ingredients through its storage menu.
 
@@ -20,7 +24,7 @@ The autocrafter attempts one craft every second while its chunk is loaded. Outpu
 
 Recipes consume their normal ingredients and produce their normal output quantities. Container leftovers, such as empty buckets, leave with the output. Named, enchanted and plugin items are preserved unless the recipe explicitly requires those exact items. Smelting, smithing and special dynamic recipes are not included.
 
-Click **Pause crafting** to clear the selection. Ingredients and the chosen recipe persist in the barrel across restarts and chunk unloads. Breaking the block returns its ingredients and the autocrafter item in survival. The picked-up autocrafter starts without a selected recipe when placed again. Autocrafters resist explosions and piston movement.
+Click **Pause crafting** to stop the machine while keeping its selected recipe. Click **Resume crafting** to restart it. The paused state also persists across restarts. Ingredients and the chosen recipe persist in the barrel across restarts and chunk unloads. Breaking the block returns its ingredients and the autocrafter item in survival. The picked-up autocrafter starts without a selected recipe when placed again. Autocrafters resist explosions and piston movement.
 
 ## Beacon maker
 
