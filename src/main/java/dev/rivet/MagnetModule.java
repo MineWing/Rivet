@@ -1,6 +1,7 @@
 package dev.rivet;
 
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Item;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 final class MagnetModule {
     private static final double DEFAULT_RADIUS = 8;
+    private static final int DEFAULT_IGNORE_OWN_DROPS_TICKS = 60;
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
     private final YamlConfiguration data;
@@ -58,18 +60,22 @@ final class MagnetModule {
 
     private void tick() {
         double radius = radius(settings.getDouble("radius", DEFAULT_RADIUS));
+        int ignoreOwnDropsTicks = Math.max(0, settings.getInt("ignore-own-drops-ticks",
+            DEFAULT_IGNORE_OWN_DROPS_TICKS));
         plugin.getServer().getOnlinePlayers().stream()
             .filter(player -> data.getBoolean("enabled." + player.getUniqueId()))
+            .filter(player -> canCollect(player.getGameMode(), player.isDead(),
+                player.getHealth(), player.getCanPickupItems()))
             .filter(player -> player.hasPermission("rivet.magnet"))
-            .forEach(player -> collect(player, radius));
+            .forEach(player -> collect(player, radius, ignoreOwnDropsTicks));
     }
 
-    private void collect(Player player, double radius) {
+    private void collect(Player player, double radius, int ignoreOwnDropsTicks) {
         player.getNearbyEntities(radius, radius, radius).stream()
             .filter(Item.class::isInstance)
             .map(Item.class::cast)
             .filter(item -> withinRadius(player, item, radius))
-            .filter(item -> availableTo(player, item))
+            .filter(item -> availableTo(player, item, ignoreOwnDropsTicks))
             .forEach(item -> collect(player, item));
     }
 
@@ -146,10 +152,32 @@ final class MagnetModule {
         return copy;
     }
 
-    private static boolean availableTo(Player player, Item item) {
-        UUID owner = item.getOwner();
+    private static boolean availableTo(Player player, Item item, int ignoreOwnDropsTicks) {
         return item.isValid() && !item.isDead() && item.canPlayerPickup()
-            && (owner == null || owner.equals(player.getUniqueId()));
+            && canAttract(player.getUniqueId(), item.getOwner(), item.getThrower(),
+                item.getPickupDelay(), item.getTicksLived(), ignoreOwnDropsTicks);
+    }
+
+    /**
+     * Whether a player may use the magnet at all. Spectators, dead players on the respawn
+     * screen and players whose item pickup is disabled never collect items in vanilla either.
+     */
+    static boolean canCollect(GameMode gameMode, boolean dead, double health,
+                              boolean canPickupItems) {
+        return gameMode != GameMode.SPECTATOR && !dead && health > 0 && canPickupItems;
+    }
+
+    /**
+     * Whether a dropped item may be pulled to a player. Items still on their pickup delay are
+     * left alone (otherwise anything dropped with Q comes straight back), as are the player's
+     * own throws for {@code ignoreOwnDropsTicks} ticks, so dropping or giving items still works.
+     */
+    static boolean canAttract(UUID player, UUID owner, UUID thrower, int pickupDelay,
+                              int ticksLived, int ignoreOwnDropsTicks) {
+        if (pickupDelay > 0 || owner != null && !owner.equals(player)) {
+            return false;
+        }
+        return !player.equals(thrower) || ticksLived >= ignoreOwnDropsTicks;
     }
 
     private static boolean withinRadius(Player player, Item item, double radius) {

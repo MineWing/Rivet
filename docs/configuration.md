@@ -35,6 +35,7 @@ plugins/Rivet/
 |   |-- permissions.yml
 |   |-- poses.yml
 |   |-- polls.yml
+|   |-- restart.yml
 |   |-- server-list.yml
 |   |-- rtp.yml
 |   |-- spawn.yml
@@ -89,8 +90,9 @@ This file contains feature switches only. Every value must be `true` or `false`.
 | `near` | Disabled |
 | `nicknames` | Enabled |
 | `permissions` | Disabled |
-| `polls` | Enabled |
 | `poses` | Disabled |
+| `polls` | Enabled |
+| `restart` | Disabled |
 | `server-list` | Enabled |
 | `rtp` | Disabled |
 | `snapshots` | Enabled |
@@ -109,6 +111,8 @@ This file contains feature switches only. Every value must be `true` or `false`.
 
 Substantial modules own a file under `settings/`. Small mechanics are grouped in `gameplay.yml`, while cross-feature rules such as teleport timing live in a dedicated policy file. On startup, Rivet adds newly introduced default keys without replacing existing values. Messages use MiniMessage formatting and `%placeholder%` variables.
 
+Some sections are lists of your own entries rather than settings: `kits` in `kits.yml`; `chat-styles.colors`, `chat-styles.gradients` and `tags.list` in `chat.yml`; `groups` in `permissions.yml`; `announcements` in `announcements.yml`; `rewards` and `milestones` in `daily.yml`; `day-commands` in `restart.yml`; `worlds` in `rtp.yml`; and every menu's `items` map (`gui.items`, or `gui.<menu>.items`) in the files that have menus. Rivet fills one of these with its bundled examples only when the whole section is missing. Once the section exists, its entries are yours: a deleted kit, tag, group, gradient or menu item stays deleted, and nothing is added inside the entries you keep. To get the bundled examples back, remove the whole section and restart.
+
 ### Server-list MOTD
 
 `settings/server-list.yml` changes the two-line description shown in Minecraft's multiplayer
@@ -121,7 +125,7 @@ with `/rivet reload`, while changing the `server-list` switch in `modules.yml` r
 
 `settings/chat.yml` keeps public chat in one compact file. The `format` value supports `%prefix%`, `%suffix%`, `%tag%`, `%player%`, and `%message%`; the first two are filled from Rivet group metadata only when the optional permissions module is active. Tags remain independent cosmetic selections. A selected color, gradient, or rainbow style wraps `%message%` only.
 
-Named colors and gradients under `chat-styles` become permission names such as `rivet.chat.color.red` and `rivet.chat.gradient.sunset`. The bundled gradients include a curated set of popular published [RGBirdflop community presets](https://www.birdflop.com/resources/rgb/presets/), stored with `birdflop-` keys. Their colour stops are translated to MiniMessage gradients. Newly bundled preset keys are merged into an existing `settings/chat.yml` on startup without replacing server edits. Custom six-digit hex colors, custom two-color gradients, and rainbow share `rivet.chat.style.custom` and can each be disabled. Tags follow `rivet.chat.tag.<name>`. Player selectors show only choices the player may use.
+Named colors and gradients under `chat-styles` become permission names such as `rivet.chat.color.red` and `rivet.chat.gradient.sunset`. The bundled gradients include a curated set of popular published [RGBirdflop community presets](https://www.birdflop.com/resources/rgb/presets/), stored with `birdflop-` keys. Their colour stops are translated to MiniMessage gradients. `chat-styles.colors`, `chat-styles.gradients` and `tags.list` belong to you once they exist: deleted entries stay deleted and newly bundled presets are not added to them. Custom six-digit hex colors, custom two-color gradients, and rainbow share `rivet.chat.style.custom` and can each be disabled. Tags follow `rivet.chat.tag.<name>`. Player selectors show only choices the player may use.
 
 Chat style and tag selectors use a paginated layout with live previews and active-selection feedback. Their titles, sizes, content slots, controls, materials, names, lore, open actions, and click actions use the shared menu format described below.
 
@@ -132,7 +136,30 @@ style. The configurable notification actions play a sound and show a title by de
 contains only a cooldown and a similarity percentage; `rivet.chat.antispam.bypass` skips both
 checks.
 
+`ignore.hide-public-chat` (default `true`) also hides public chat from players who `/ignore` the
+sender; `/msg`, `/r` and `/me` always respect ignore lists. Senders with `rivet.ignore.bypass` are
+never hidden.
+
 Style and tag displays use a visual-only MiniMessage parser. Colors, gradients, rainbow, reset, and safe decorations are supported, but player-controlled cosmetics cannot create clicks, hovers, commands, URLs, insertions, NBT, fonts, or selectors. Rivet-generated `[item]` hover data remains intact.
+
+### Nicknames
+
+`settings/nicknames.yml` limits nickname length with `maximum-length`. A nickname whose plain text
+matches another player's username or nickname (case-insensitively) is always rejected.
+Self-chosen nicknames must also fully match `allowed-pattern` (default `[A-Za-z0-9_ ]+`; set it to
+`''` to allow any characters; `rivet.nick.unicode` bypasses it) and must not contain any entry in
+`blocked-words` (case-insensitive substrings, also checked with spaces and punctuation removed).
+Staff with `rivet.nick.others` setting another player's nickname skip the pattern and blocked-word
+rules. Existing nicknames are not re-validated. Each rejection reason has its own message under
+`messages` (`invalid`, `taken`, `disallowed-characters`, `blocked-word`).
+
+### Moderation protection
+
+`/ban`, `/tempban`, `/mute`, `/tempmute`, `/kick`, and `/warn` refuse to target yourself, an
+operator when you are not one, or a player with `rivet.moderation.exempt` (default `op`). Offline
+targets are checked against Rivet's stored permissions when the permissions module is enabled.
+The refusals use `messages.moderation-self` and `messages.moderation-protected` in
+`settings/staff.yml`. Temporary durations are capped at 100 years.
 
 ### Inventory menus
 
@@ -194,6 +221,16 @@ configurable action list and can be disabled independently. `length.unit`,
 `length.decimal-places`, and the per-material ranges control the playful fish measurements.
 Catch names are inserted safely and retain their item hover details.
 
+### Egg capture
+
+`settings/egg-capture.yml` controls which mobs can be captured. `blocked-types` lists entity
+types that can never be captured, even with `rivet.eggcapture.bypass`; entries accept
+`IRON_GOLEM` or `minecraft:iron_golem`. A non-empty `allowed-types` list restricts captures to
+those types; leave it empty to allow every type that is not blocked. Unknown names are logged
+on startup. `messages.cannot-capture` is sent for every refused capture and
+`messages.cannot-use-on-spawner` when a player tries to use a captured egg on a spawner or trial
+spawner. The remaining keys control the egg's name and lore, sounds, and particles.
+
 ### Creeper restoration
 
 `settings/creeper-restoration.yml` controls container and block-entity restoration,
@@ -202,11 +239,28 @@ animation timing, Restoration Core behavior, messages, sounds, and particles. Wi
 clearing its live block inventory. This escrow prevents the same contents from dropping
 during the explosion and then being restored as a second copy. Double-chest halves are
 cleared independently; if live contents cannot be cleared safely, Rivet discards their
-saved copy rather than risk duplication.
+saved copy rather than risk duplication. With `restore-other-block-entity-data` enabled, the
+items held by lecterns, jukeboxes, chiseled bookshelves, decorated pots, shelves, and
+campfires are escrowed the same way, because vanilla drops them whenever the block is removed.
+A container or decorated pot whose loot table has not been generated yet keeps no snapshot
+contents: vanilla generates and drops its loot, and the block is rebuilt empty.
+
+Unrepaired craters are bounded by `restoration.crater-lifetime-minutes` (default `30`; `0`
+keeps craters until eviction or shutdown) and `restoration.maximum-craters` (default `200`,
+minimum `1`; the oldest idle crater is released first). Releasing a crater, including on
+server shutdown, drops its escrowed container contents and drops each block whose space is
+still empty at the explosion's normal drop chance. A block that was built over is not
+rebuilt; its escrowed contents drop at its location instead.
 
 ### Gameplay mechanics
 
-`settings/gameplay.yml` contains small switches that do not need full module lifecycle management: crop-trample protection, water-harvest replanting, Iron Golem poppy drops, and faster hoppers. Hopper transfers use a 2-tick cooldown by default; vanilla uses 8 ticks.
+`settings/gameplay.yml` contains small switches that do not need full module lifecycle management: crop-trample protection, water-harvest replanting, Iron Golem poppy drops, and faster hoppers. Hopper transfers use a 2-tick cooldown by default; vanilla uses 8 ticks. `hoppers.enabled` and `hoppers.transfer-cooldown-ticks` apply immediately with `/rivet reload`; `autocrafter.enabled` and `beacon-tools.enabled` require a server restart.
+
+Water-harvest replanting only replants a crop when its seed (or carrot/potato) was among the broken crop's drops; that item is used up for the replant. Pending replants wait up to one minute for the water to recede, never load chunks, and refund the seed if the crop cannot be replanted while its chunk is loaded.
+
+### Inventory commands
+
+`settings/inventory.yml` sets `maximum-give-amount` (default 2304), the largest amount `/i` or `/giveall` (per player) accepts. Anything that does not fit in an inventory is dropped in normal-sized stacks. The `messages.hat-binding-curse` action is shown when `/hat` is refused because the current helmet has Curse of Binding.
 
 ### Tree felling and vein mining
 
@@ -216,6 +270,8 @@ their attached cocoa and naturally anchored hanging vines are removed with the t
 attached-block limit bounds that extra growth scan. Warped and crimson stems use their
 matching wart-block canopies and embedded shroomlights in place of ordinary leaves. Existing
 settings files receive new defaults automatically without replacing customized values.
+Vein mining never breaks more ores than the pickaxe has durability left, mining the ores
+nearest the broken block first; Unbreaking still reduces the actual durability cost.
 Players require `rivet.treefeller` for whole-tree felling and `rivet.veinminer` for connected
 mining; both permission nodes default to `true`.
 
@@ -231,6 +287,22 @@ Operators receive `rivet.tp.nocooldown` by default. It makes player-facing telep
 
 `settings/lagg.yml` controls the cleanup interval, warning times, protected-item rules, and every cleanup message, including the `/lagg timer` response. Rivet scans loaded worlds only when a cleanup runs. Shulker boxes of every colour are always protected. By default, dropped items with custom names, PersistentDataContainer data, or a material in `crop-materials` are also protected. The crop list includes ordinary farmland crops, seeds, nether wart, cocoa, berries, melon and pumpkin products, sugar cane, cactus, bamboo, kelp, mushrooms, and chorus harvests. The cleanup result reports the total number of removed items; its configurable hover label shows the complete breakdown by material.
 
+### Polls
+
+`settings/polls.yml` controls the delay before a joining player is reminded about any
+poll they have not answered and the clickable reminder message. Poll definitions and
+UUID-keyed yes/no votes are stored in `data/polls.yml`. The poll result format and poll
+GUI items support `%yes%` and `%no%`; both contain the current vote totals. Players vote
+directly in the poll browser by left-clicking for Yes or right-clicking for No.
+
+### Scheduled restarts
+
+`settings/restart.yml` controls `schedules` (`Day;HH;MM` entries, where `Day` is
+`Monday`-`Sunday` or `Daily`), the console `restart-command`, `warning-seconds`, relative
+`commands` and per-day `day-commands`, and the `delay` block that postpones a due restart
+while enough players are online. Every message, including warnings and the staff
+delay/cancel broadcasts, uses the same configurable action list as other Rivet features.
+
 ### Item pickup filter
 
 `settings/filter.yml` controls the maximum saved materials, worlds where filtering is
@@ -244,15 +316,10 @@ disable their saved list.
 `settings/magnet.yml` controls the straight-line collection radius used by `/magnet`;
 the default is 8 blocks. Each player's toggle is persisted in `data/magnet.yml`. Magnet
 collection fires Paper's cancellable pickup events and requires room for the entire dropped
-stack, so pickup filters and inventory-capacity limits are preserved.
-
-### Polls
-
-`settings/polls.yml` controls the delay before a joining player is reminded about any
-poll they have not answered and the clickable reminder message. Poll definitions and
-UUID-keyed yes/no votes are stored in `data/polls.yml`. The poll result format and poll
-GUI items support `%yes%` and `%no%`; both contain the current vote totals. Players vote
-directly in the poll browser by left-clicking for Yes or right-clicking for No.
+stack, so pickup filters and inventory-capacity limits are preserved. Like vanilla pickup, the
+magnet leaves items on their pickup delay alone and is inactive for spectators, dead players,
+and players who cannot pick items up. `ignore-own-drops-ticks` (default 60, i.e. 3 seconds)
+also stops a player's magnet from pulling back items they dropped or threw themselves.
 
 ### Statistics and Seen v2
 
@@ -298,13 +365,20 @@ Files under `data/` contain generated state such as homes, warps, graves, telepo
 
 Do not hand-edit runtime data while the server is running. Rivet may overwrite an external change the next time it saves that module.
 
+Rivet saves a data file by writing `name.yml.tmp` and then moving it over `name.yml`, so a crash leaves either the old or the new file, never a half-written one. The previous version is kept as `name.yml.bak`. If a data file can't be read at startup (for example after a YAML typo), Rivet copies it to `name.yml.corrupt-<date>-<time>`, logs an error, and stops saving that file for the rest of the run. It does not start from an empty file and overwrite your data. Players get the usual "could not save" message. Fix the file, or restore it from the `.bak` copy, and restart.
+
+Backpack clicks, auto-breeder menu clicks, breeding, egg collection and XP collection update memory straight away, but `data/backpacks.yml` and `data/breeders.yml` are written at most every 5 seconds, in the background. Closing a backpack or breeder menu, quitting, breaking a breeder, collecting breeder XP, and stopping the server all save immediately.
+
 ## Reloading
 
 [`/rivet reload`](commands.md#rivet) validates and reloads `config.yml`, `modules.yml`, and all module settings. Invalid YAML leaves the current in-memory configuration active and identifies the failing file.
 
-Settings changes apply immediately where supported. Changes to `modules.yml` are reported but do not take effect until restart.
+Settings changes apply immediately where supported. Changes to `modules.yml` are reported but do not take effect until restart. The same applies to the `autocrafter.enabled` and `beacon-tools.enabled` switches in `settings/gameplay.yml`: the reload output lists either one whenever it differs from what is currently running. `hoppers.enabled` and the hopper cooldown take effect immediately.
 
 `/rivet reload` reloads `settings/lagg.yml` and restarts the active cleanup and warning schedule.
+
+`/rivet reload` reloads `settings/restart.yml` and reschedules the next restart, its
+warnings, and its relative commands from the updated configuration.
 
 `/rivet reload` refreshes `settings/snapshots.yml` immediately. Lower retention or maximum
 values schedule cleanup on the snapshot storage worker. The `snapshots` switch in

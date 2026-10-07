@@ -218,16 +218,6 @@ public final class RivetPluginTest {
     }
 
     @Test
-    public void fastForwardsWorldTimeAcrossMidnightAndStopsExactlyAtTheTarget() {
-        assertEquals(12_000, RivetPlugin.forwardTimeDistance(1_000, 13_000));
-        assertEquals(2_000, RivetPlugin.forwardTimeDistance(23_000, 1_000));
-        assertEquals(0, RivetPlugin.forwardTimeDistance(13_000, 13_000));
-        assertEquals(23_500, RivetPlugin.transitionedTime(23_000, 2_000, 1, 4));
-        assertEquals(0, RivetPlugin.transitionedTime(23_000, 2_000, 2, 4));
-        assertEquals(1_000, RivetPlugin.transitionedTime(23_000, 2_000, 4, 4));
-    }
-
-    @Test
     public void mapsWaterHarvestedCropsToTheirPlantingItems() {
         assertEquals(Material.WHEAT_SEEDS, RivetPlugin.plantingItem(Material.WHEAT));
         assertEquals(Material.CARROT, RivetPlugin.plantingItem(Material.CARROTS));
@@ -352,7 +342,7 @@ public final class RivetPluginTest {
         assertNotNull(pluginResource);
         YamlConfiguration plugin = YamlConfiguration.loadConfiguration(
             new InputStreamReader(pluginResource, StandardCharsets.UTF_8));
-        assertEquals(102, plugin.getConfigurationSection("commands").getKeys(false).size());
+        assertEquals(113, plugin.getConfigurationSection("commands").getKeys(false).size());
         plugin.getConfigurationSection("commands").getKeys(false)
             .stream().filter(command -> !command.equals("rivet"))
             .forEach(command -> assertNotNull(command, RivetPlugin.moduleForCommand(command)));
@@ -386,6 +376,15 @@ public final class RivetPluginTest {
         assertEquals("chat", RivetPlugin.moduleForCommand("tag"));
         assertEquals("staff", RivetPlugin.moduleForCommand("bossbarmsg"));
         assertEquals("staff", RivetPlugin.moduleForCommand("commandspy"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("ban"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("tempban"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("unban"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("mute"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("tempmute"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("unmute"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("kick"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("warn"));
+        assertEquals("staff", RivetPlugin.moduleForCommand("history"));
         assertEquals("inventory", RivetPlugin.moduleForCommand("condense"));
         assertEquals("inventory", RivetPlugin.moduleForCommand("scan"));
         assertEquals("worlds", RivetPlugin.moduleForCommand("findbiome"));
@@ -394,6 +393,7 @@ public final class RivetPluginTest {
         assertNull(RivetPlugin.moduleForCommand("log"));
         assertEquals("snapshots", RivetPlugin.moduleForCommand("snapshot"));
         assertEquals("utilities", RivetPlugin.moduleForCommand("nv"));
+        assertEquals("restart", RivetPlugin.moduleForCommand("restart"));
         assertEquals("polls", RivetPlugin.moduleForCommand("poll"));
         assertNull(RivetPlugin.moduleForCommand("group"));
         assertNull(RivetPlugin.moduleForCommand("rivet"));
@@ -472,7 +472,7 @@ public final class RivetPluginTest {
     @Test
     public void guiActionsParseEverySupportedTagCaseInsensitively() {
         List<String> tags = List.of("toast", "actionbar", "particle", "title", "bossbar",
-            "lightning", "sound", "message", "close");
+            "lightning", "sound", "message", "close", "centered", "center");
         tags.forEach(tag -> assertEquals(tag,
             GuiActions.parseAction("[" + tag.toUpperCase() + "] value").tag()));
         assertEquals("value", GuiActions.parseAction("[message] value").value());
@@ -644,6 +644,13 @@ public final class RivetPluginTest {
             AfkModule.parseArguments(new String[]{"-s", "-p:Alex", "Moderating"}));
         assertEquals(false, AfkModule.parseArguments(new String[]{"-p:"}).valid());
         assertEquals("1h 1m", AfkModule.duration(3_660_000));
+    }
+
+    @Test
+    public void dropsAfkReasonsFromMutedPlayers() {
+        assertEquals("Lunch", AfkModule.visibleReason("Lunch", false));
+        assertEquals(null, AfkModule.visibleReason("Lunch", true));
+        assertEquals(null, AfkModule.visibleReason(null, false));
     }
 
     @Test

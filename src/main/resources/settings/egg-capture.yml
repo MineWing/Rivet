@@ -1,8 +1,33 @@
+# Entity types that can never be captured, even with rivet.eggcapture.bypass.
+# Accepts names such as IRON_GOLEM or minecraft:iron_golem.
+blocked-types:
+  - WITHER
+  - ENDER_DRAGON
+  - WARDEN
+  - ELDER_GUARDIAN
+  - VILLAGER
+  - ZOMBIE_VILLAGER
+  - WANDERING_TRADER
+  - IRON_GOLEM
+  - PIGLIN_BRUTE
+  - SHULKER
+  - EVOKER
+  - GIANT
+  - ILLUSIONER
+
+# When non-empty, only these entity types can be captured (blocked-types still applies).
+# Leave empty to allow every type that is not blocked.
+allowed-types: []
+
 messages:
   cannot-capture:
     enabled: true
     actions:
       - '[actionbar] <white>That creature cannot be captured.</white>'
+  cannot-use-on-spawner:
+    enabled: true
+    actions:
+      - '[actionbar] <white>Captured creatures cannot be used on spawners.</white>'
 
 captured-egg:
   name: "<white>Captured <#f72a4c>%mob%</#f72a4c></white>"

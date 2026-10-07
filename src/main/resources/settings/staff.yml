@@ -44,3 +44,20 @@ messages:
   god-disabled: { enabled: true, actions: ['[message] <white>God mode disabled for <#f72a4c>%target%</#f72a4c>.</white>'] }
   god-target-enabled: { enabled: true, actions: ['[message] <white>God mode was enabled.</white>'] }
   god-target-disabled: { enabled: true, actions: ['[message] <white>God mode was disabled.</white>'] }
+  # ban-kick-message and kick-message are shown on the disconnect screen, so unlike the other
+  # messages here they are plain MiniMessage strings rather than {enabled, actions} entries.
+  ban-kick-message: '<white>You have been banned: <#f72a4c>%reason%</#f72a4c></white>'
+  kick-message: '<white>You have been kicked: <#f72a4c>%reason%</#f72a4c></white>'
+  ban-success: { enabled: true, actions: ['[message] <white>Banned <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>'] }
+  unban-success: { enabled: true, actions: ['[message] <white>Unbanned <#f72a4c>%target%</#f72a4c>.</white>'] }
+  mute-success: { enabled: true, actions: ['[message] <white>Muted <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>'] }
+  mute-notification: { enabled: true, actions: ['[message] <white>You have been muted: <#f72a4c>%reason%</#f72a4c></white>'] }
+  unmute-success: { enabled: true, actions: ['[message] <white>Unmuted <#f72a4c>%target%</#f72a4c>.</white>'] }
+  unmute-notification: { enabled: true, actions: ['[message] <white>You have been unmuted.</white>'] }
+  kick-success: { enabled: true, actions: ['[message] <white>Kicked <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>'] }
+  warn-success: { enabled: true, actions: ['[message] <white>Warned <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>'] }
+  warn-notification: { enabled: true, actions: ['[message] <#f72a4c><bold>You have been warned:</bold></#f72a4c> <white>%reason%</white>'] }
+  # Shown when /ban, /tempban, /mute, /tempmute, /kick or /warn targets yourself, an operator (when
+  # you are not one), or a player with rivet.moderation.exempt.
+  moderation-self: { enabled: true, actions: ['[message] <white>You cannot use that moderation command on yourself.</white>'] }
+  moderation-protected: { enabled: true, actions: ['[message] <white><#f72a4c>%target%</#f72a4c> is protected from moderation.</white>'] }

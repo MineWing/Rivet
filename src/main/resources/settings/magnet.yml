@@ -1,6 +1,11 @@
 # Maximum straight-line distance at which enabled players collect dropped items.
 radius: 8.0
 
+# Items a player dropped or threw themselves are ignored by their own magnet for this many
+# ticks (20 ticks = 1 second), so dropping or handing items to others still works.
+# Items still on their vanilla pickup delay are never attracted.
+ignore-own-drops-ticks: 60
+
 messages:
   enabled:
     enabled: true

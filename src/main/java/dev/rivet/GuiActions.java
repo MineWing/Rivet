@@ -57,6 +57,8 @@ final class GuiActions {
             }
             switch (action.tag()) {
                 case "message" -> player.sendMessage(MM.deserialize(action.value(), resolved));
+                case "centered", "center" -> player.sendMessage(
+                    ChatCentering.center(MM.deserialize(action.value(), resolved)));
                 case "broadcast" -> plugin.getServer().broadcast(
                     MM.deserialize(action.value(), resolved));
                 case "player", "command" -> runPlayerCommand(player,

@@ -117,7 +117,7 @@ final class AutoBreeder implements Listener {
     private final Map<String, Inventory> inventories = new HashMap<>();
     private final Map<String, TextDisplay> loadedHolograms = new HashMap<>();
     private final Map<UUID, PendingBreed> pendingBreeds = new HashMap<>();
-    private final YamlConfiguration data;
+    private final DataStore.DataFile data;
     private final YamlConfiguration settings;
     private final BukkitTask task;
     private int secondsUntilBreed = BREED_INTERVAL_SECONDS;
@@ -132,7 +132,7 @@ final class AutoBreeder implements Listener {
             NamespacedKey.fromString("core:auto_breeder_hologram"));
         legacyPlayerHologramKey = Objects.requireNonNull(NamespacedKey.fromString("core:hologram"));
         experienceButtonKey = new NamespacedKey(plugin, "auto_breeder_experience");
-        data = plugin.data("breeders");
+        data = (DataStore.DataFile) plugin.data("breeders");
         settings = plugin.settings("breeders");
         ConfigurationSection saved = data.getConfigurationSection(CONFIG_PATH);
         if (saved != null) {
@@ -160,7 +160,7 @@ final class AutoBreeder implements Listener {
                 }
             }
             if (migrated) {
-                save();
+                saveNow();
             }
         }
         registerRecipes();
@@ -185,7 +185,7 @@ final class AutoBreeder implements Listener {
         data.set(path(key) + ".animal", animal.name());
         data.set(path(key) + ".food", 0);
         data.set(path(key) + ".animals-bred", 0);
-        save();
+        saveNow();
         ensureHologram(key);
     }
 
@@ -202,7 +202,10 @@ final class AutoBreeder implements Listener {
         menu().open(event.getPlayer(), displayPlaceholders(animal, food(key(block))));
     }
 
-    @EventHandler(ignoreCancelled = true)
+    // MONITOR: remove() drops the stored food, eggs, XP and breeder item and deletes the data, so
+    // it must only run once protection plugins have had their chance to cancel the break.
+    // setDropItems is still honoured at MONITOR.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         if (!isBreeder(event.getBlock())) {
             return;
@@ -370,18 +373,21 @@ final class AutoBreeder implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getInventory().getHolder() instanceof BreederHolder holder) {
             persist(holder.key, event.getInventory());
+            saveNow();
         }
     }
 
     void shutdown() {
         task.cancel();
         inventories.forEach(this::persist);
+        saveNow();
         loadedHolograms.clear();
         recipeKeys.forEach(Bukkit::removeRecipe);
     }
 
     void reloadGui() {
         inventories.forEach(this::persist);
+        saveNow();
         inventories.values().forEach(inventory ->
             List.copyOf(inventory.getViewers()).forEach(HumanEntity::closeInventory));
         inventories.clear();
@@ -683,7 +689,10 @@ final class AutoBreeder implements Listener {
         pendingBreeds.values().removeIf(pending -> pending.expiresAt < now);
         for (String key : List.copyOf(breeders)) {
             Location location = location(key);
-            if (location == null) {
+            // Reading a block in an unloaded chunk loads it synchronously; leave unloaded breeders
+            // alone (and never treat them as missing) until a player brings their chunk back.
+            if (location == null || !location.getWorld().isChunkLoaded(
+                location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
                 continue;
             }
             Block block = location.getBlock();
@@ -841,7 +850,7 @@ final class AutoBreeder implements Listener {
         if (dropBlock) {
             location.getWorld().dropItemNaturally(location, item(animal));
         }
-        save();
+        saveNow();
     }
 
     private void persist(String key, Inventory inventory) {
@@ -851,7 +860,9 @@ final class AutoBreeder implements Listener {
         BreederHolder holder = (BreederHolder) inventory.getHolder(false);
         data.set(path(key) + ".food", food(inventory, food(key), holder.inputSlots));
         data.set(path(key) + ".eggs", eggs(inventory, holder.eggSlots));
-        save();
+        // Clicks and breed cycles only mark breeders.yml dirty, so it is written at most every
+        // few seconds; closing the menu, removal and shutdown still save immediately.
+        data.markDirty();
         updateHologram(key);
     }
 
@@ -931,9 +942,9 @@ final class AutoBreeder implements Listener {
         return data.getInt(path(key) + ".animals-bred");
     }
 
-    private void save() {
+    private void saveNow() {
         try {
-            plugin.saveData("breeders");
+            data.saveNow();
         } catch (IOException exception) {
             plugin.getLogger().severe("Could not save data/breeders.yml: " + exception.getMessage());
         }
@@ -990,8 +1001,9 @@ final class AutoBreeder implements Listener {
     private String nearestBreeder(Location source, EntityType animal) {
         return breeders.stream().filter(key -> animal(key) == animal).filter(key -> {
             Location location = location(key);
+            // Distance first: isBreeder reads the block, which would load a far-away breeder's chunk.
             return location != null && location.getWorld().equals(source.getWorld())
-                && isBreeder(location.getBlock()) && location.distanceSquared(source) <= RANGE * RANGE;
+                && location.distanceSquared(source) <= RANGE * RANGE && isBreeder(location.getBlock());
         }).min(java.util.Comparator.comparingDouble(key -> location(key).distanceSquared(source)))
             .orElse(null);
     }
@@ -1015,7 +1027,7 @@ final class AutoBreeder implements Listener {
             renderEggs(inventory, total,
                 ((BreederHolder) inventory.getHolder(false)).eggSlots);
         }
-        save();
+        data.markDirty();
         return collected;
     }
 
@@ -1027,7 +1039,7 @@ final class AutoBreeder implements Listener {
             renderExperience(inventory, total,
                 ((BreederHolder) inventory.getHolder(false)).experienceSlots);
         }
-        save();
+        data.markDirty();
     }
 
     private void claimExperience(String key, Player player, Inventory inventory) {
@@ -1038,7 +1050,7 @@ final class AutoBreeder implements Listener {
         data.set(path(key) + ".experience", 0);
         renderExperience(inventory, 0,
             ((BreederHolder) inventory.getHolder(false)).experienceSlots);
-        save();
+        saveNow();
         player.giveExp(experience);
         plugin.messageActions().run(player, settings, "messages.experience-collected", "actionbar",
             "<white>Collected <#f72a4c>%amount% XP</#f72a4c>.</white>",

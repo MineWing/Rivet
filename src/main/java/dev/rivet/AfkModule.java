@@ -62,7 +62,13 @@ final class AfkModule implements Listener {
             }
         }
         boolean value = !isAfk(target.getUniqueId());
-        set(target, value, parsed.reason(), parsed.silent());
+        boolean muted = plugin.isMuted(player);
+        String reason = visibleReason(parsed.reason(), muted);
+        set(target, value, reason, parsed.silent());
+        if (value && reason == null && parsed.reason() != null && muted) {
+            plugin.messageActions().run(player, plugin.settings("afk"), "messages.reason-hidden-muted",
+                "<white>Your AFK reason was not shown because you are muted.</white>");
+        }
         if (parsed.silent()) {
             player.sendMessage(MM.deserialize(value
                     ? "<white>AFK enabled for <#f72a4c>%player%</#f72a4c>."
@@ -279,14 +285,12 @@ final class AfkModule implements Listener {
     }
 
     static AfkArguments parseArguments(String[] args) {
+        boolean silent = CommandArgs.hasFlag(args, "-s");
         String player = null;
-        boolean silent = false;
         List<String> reason = new java.util.ArrayList<>();
         boolean valid = true;
-        for (String argument : args) {
-            if (argument.equalsIgnoreCase("-s")) {
-                silent = true;
-            } else if (argument.regionMatches(true, 0, "-p:", 0, 3)) {
+        for (String argument : CommandArgs.withoutFlag(args, "-s")) {
+            if (argument.regionMatches(true, 0, "-p:", 0, 3)) {
                 String value = argument.substring(3);
                 if (player != null || value.isBlank()) {
                     valid = false;
@@ -299,6 +303,11 @@ final class AfkModule implements Listener {
         }
         String joined = String.join(" ", reason).trim();
         return new AfkArguments(player, joined.isEmpty() ? null : joined, silent, valid);
+    }
+
+    /** A muted player's free-text reason is dropped so it can't be broadcast, stored, or shown by /afkcheck. */
+    static String visibleReason(String reason, boolean muted) {
+        return muted ? null : reason;
     }
 
     static String duration(long millis) {

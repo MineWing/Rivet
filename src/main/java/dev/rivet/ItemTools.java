@@ -5,8 +5,10 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.minimessage.tag.standard.StandardTags;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
@@ -19,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 
 final class ItemTools {
+    static final int DEFAULT_MAXIMUM_GIVE_AMOUNT = 2_304;
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final MiniMessage FORMATTED = RivetMiniMessage.builder().tags(TagResolver.resolver(
         StandardTags.color(), StandardTags.decorations())).build();
@@ -58,15 +61,32 @@ final class ItemTools {
             return true;
         }
         ItemStack helmet = player.getInventory().getHelmet();
-        player.getInventory().setHelmet(held);
-        player.getInventory().setItemInMainHand(helmet == null ? new ItemStack(Material.AIR) : helmet);
+        boolean emptyHead = helmet == null || helmet.isEmpty();
+        if (hatBlocked(!emptyHead && helmet.containsEnchantment(Enchantment.BINDING_CURSE),
+            player.getGameMode())) {
+            message(player, "hat-binding-curse",
+                "<white>Your current helmet has Curse of Binding and cannot be removed.</white>");
+            return true;
+        }
+        // Wear exactly one item; the rest of the stack stays in the hand.
+        ItemStack hat = held.asOne();
+        player.getInventory().setHelmet(hat);
+        if (held.getAmount() == 1) {
+            player.getInventory().setItemInMainHand(emptyHead ? null : helmet);
+        } else {
+            held.setAmount(held.getAmount() - 1);
+            player.getInventory().setItemInMainHand(held);
+            if (!emptyHead) {
+                giveOrDrop(player, helmet, helmet.getAmount());
+            }
+        }
         message(player, "hat-success", "<white>Equipped the item as your hat.</white>");
         return true;
     }
 
     boolean clear(Player actor, String[] args) {
-        List<String> values = Arrays.stream(args).filter(value -> !value.equalsIgnoreCase("-s")).toList();
-        boolean silent = values.size() != args.length;
+        List<String> values = CommandArgs.withoutFlag(args, "-s");
+        boolean silent = CommandArgs.hasFlag(args, "-s");
         if (values.size() > 2) {
             actor.sendMessage(MM.deserialize("<white>Usage: /clear [player] [item[:amount][;plain]] [-s]"));
             return true;
@@ -211,9 +231,13 @@ final class ItemTools {
             actor.sendMessage(MM.deserialize("<white>Use a valid item and positive whole-number amount.</white>"));
             return true;
         }
+        int maximum = maximumGiveAmount(settings);
+        if (amount > maximum) {
+            sendGiveLimit(actor, maximum);
+            return true;
+        }
         plugin.getServer().getOnlinePlayers().forEach(player ->
-            player.getInventory().addItem(new ItemStack(material, amount)).values()
-                .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover)));
+            giveOrDrop(player, new ItemStack(material), amount));
         actor.sendMessage(MM.deserialize("<white>Gave <#f72a4c>%amount% %item%</#f72a4c> to <#f72a4c>%count%</#f72a4c> player(s).",
             net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("amount", Integer.toString(amount)),
             net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("item", material.name().toLowerCase(Locale.ROOT)),
@@ -429,6 +453,39 @@ final class ItemTools {
         return material == null || material == Material.AIR || material == Material.CAVE_AIR
             || material == Material.VOID_AIR || amount < 1
             ? null : new ClearItem(material, amount, data.length == 2);
+    }
+
+    static int maximumGiveAmount(YamlConfiguration settings) {
+        return Math.max(1, settings.getInt("maximum-give-amount", DEFAULT_MAXIMUM_GIVE_AMOUNT));
+    }
+
+    static void sendGiveLimit(Player player, int maximum) {
+        player.sendMessage(MM.deserialize("<white>Amount must be between 1 and <#f72a4c>%max%</#f72a4c>.</white>",
+            net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                "max", Integer.toString(maximum))));
+    }
+
+    // Builds legal-sized stacks up front (never one oversized stack), so overflow drops are legal too.
+    static void giveOrDrop(Player player, ItemStack item, int amount) {
+        ItemStack[] stacks = stackAmounts(amount, item.getMaxStackSize()).stream()
+            .map(item::asQuantity).toArray(ItemStack[]::new);
+        player.getInventory().addItem(stacks).values()
+            .forEach(leftover -> stackAmounts(leftover.getAmount(), leftover.getMaxStackSize())
+                .forEach(count -> player.getWorld().dropItemNaturally(player.getLocation(),
+                    leftover.asQuantity(count))));
+    }
+
+    static List<Integer> stackAmounts(int amount, int maximumStackSize) {
+        int stackSize = Math.max(1, maximumStackSize);
+        List<Integer> stacks = new ArrayList<>();
+        for (int remaining = amount; remaining > 0; remaining -= stackSize) {
+            stacks.add(Math.min(remaining, stackSize));
+        }
+        return stacks;
+    }
+
+    static boolean hatBlocked(boolean helmetHasBindingCurse, GameMode gameMode) {
+        return helmetHasBindingCurse && gameMode != GameMode.CREATIVE;
     }
 
     static int condensedAmount(int itemCount, int ratio) {

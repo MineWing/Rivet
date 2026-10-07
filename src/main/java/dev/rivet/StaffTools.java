@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -19,26 +20,32 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 final class StaffTools implements Listener {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
+    static final String MODERATION_EXEMPT = "rivet.moderation.exempt";
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
     private final YamlConfiguration data;
@@ -46,6 +53,7 @@ final class StaffTools implements Listener {
     private final Set<UUID> god = new HashSet<>();
     private final Set<ActiveBar> bossBars = new HashSet<>();
     private final java.util.Map<NamespacedKey, ActiveToast> temporaryToasts = new HashMap<>();
+    private final java.util.Map<UUID, Long> mutedUntil = new ConcurrentHashMap<>();
     private static final DateTimeFormatter NOTE_TIME = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm z")
         .withZone(ZoneId.systemDefault());
 
@@ -66,6 +74,41 @@ final class StaffTools implements Listener {
                 .filter(player -> god.contains(player.getUniqueId()))
                 .forEach(player -> player.setInvulnerable(true));
         }
+        loadMutes();
+    }
+
+    private void loadMutes() {
+        var players = notes.getConfigurationSection("players");
+        if (players == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String key : players.getKeys(false)) {
+            if (!notes.contains("players." + key + ".mute.until")) {
+                continue;
+            }
+            long until = notes.getLong("players." + key + ".mute.until");
+            if (until > 0 && until <= now) {
+                continue;
+            }
+            try {
+                mutedUntil.put(UUID.fromString(key), until);
+            } catch (IllegalArgumentException ignored) {
+                // Ignore malformed external edits and continue with Paper's cache.
+            }
+        }
+    }
+
+    boolean isMuted(UUID uuid) {
+        Long until = mutedUntil.get(uuid);
+        if (until == null) {
+            return false;
+        }
+        if (until > 0 && until <= System.currentTimeMillis()) {
+            mutedUntil.remove(uuid);
+            return false;
+        }
+        return true;
     }
 
     boolean heal(Player actor, String[] args) {
@@ -273,6 +316,233 @@ final class StaffTools implements Listener {
         return true;
     }
 
+    boolean ban(Player actor, String[] args) {
+        if (args.length == 0) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /ban <player> [reason]"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        banTarget(actor, target, null, joinFrom(args, 1, "Banned by staff."), "BAN");
+        return true;
+    }
+
+    boolean tempBan(Player actor, String[] args) {
+        if (args.length < 2) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /tempban <player> <duration> [reason]"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        Optional<Duration> duration = CommandArgs.parseDuration(args[1]);
+        if (duration.isEmpty()) {
+            actor.sendMessage(MM.deserialize(
+                "<white>Duration must look like <#f72a4c>1d12h</#f72a4c>, <#f72a4c>45m</#f72a4c>, or <#f72a4c>30s</#f72a4c>.</white>"));
+            return true;
+        }
+        banTarget(actor, target, duration.get(), joinFrom(args, 2, "Banned by staff."), "TEMPBAN");
+        return true;
+    }
+
+    boolean unban(Player actor, String[] args) {
+        if (args.length != 1) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /unban <player>"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        var banList = plugin.getServer().getBanList(BanList.Type.NAME);
+        if (!banList.isBanned(target.getName())) {
+            actor.sendMessage(MM.deserialize("<white>That player is not banned.</white>"));
+            return true;
+        }
+        banList.pardon(target.getName());
+        if (!recordHistory(actor, target, "UNBAN", "Unbanned by staff.", 0)) {
+            return true;
+        }
+        plugin.messageActions().run(actor, settings, "messages.unban-success",
+            "<white>Unbanned <#f72a4c>%target%</#f72a4c>.", Placeholder.unparsed("target", target.getName()));
+        return true;
+    }
+
+    boolean mute(Player actor, String[] args) {
+        if (args.length == 0) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /mute <player> [reason]"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        muteTarget(actor, target, 0, joinFrom(args, 1, "Muted by staff."), "MUTE");
+        return true;
+    }
+
+    boolean tempMute(Player actor, String[] args) {
+        if (args.length < 2) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /tempmute <player> <duration> [reason]"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        Optional<Duration> duration = CommandArgs.parseDuration(args[1]);
+        if (duration.isEmpty()) {
+            actor.sendMessage(MM.deserialize(
+                "<white>Duration must look like <#f72a4c>1d12h</#f72a4c>, <#f72a4c>45m</#f72a4c>, or <#f72a4c>30s</#f72a4c>.</white>"));
+            return true;
+        }
+        // parseDuration caps durations at 100 years, so this addition cannot overflow in practice.
+        muteTarget(actor, target, Math.addExact(System.currentTimeMillis(), duration.get().toMillis()),
+            joinFrom(args, 2, "Muted by staff."), "TEMPMUTE");
+        return true;
+    }
+
+    boolean unmute(Player actor, String[] args) {
+        if (args.length != 1) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /unmute <player>"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (!isMuted(target.getUniqueId())) {
+            actor.sendMessage(MM.deserialize("<white>That player is not muted.</white>"));
+            return true;
+        }
+        Long previous = mutedUntil.remove(target.getUniqueId());
+        Object previousStored = notes.get("players." + target.getUniqueId() + ".mute.until");
+        notes.set("players." + target.getUniqueId() + ".mute", null);
+        if (!recordHistory(actor, target, "UNMUTE", "Unmuted by staff.", 0)) {
+            if (previous != null) {
+                mutedUntil.put(target.getUniqueId(), previous);
+            }
+            notes.set("players." + target.getUniqueId() + ".mute.until", previousStored);
+            return true;
+        }
+        plugin.messageActions().run(actor, settings, "messages.unmute-success",
+            "<white>Unmuted <#f72a4c>%target%</#f72a4c>.", Placeholder.unparsed("target", target.getName()));
+        Player online = target.getPlayer();
+        if (online != null) {
+            plugin.messageActions().run(online, settings, "messages.unmute-notification",
+                "<white>You have been unmuted.</white>");
+        }
+        return true;
+    }
+
+    boolean kick(Player actor, String[] args) {
+        if (args.length == 0) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /kick <player> [reason]"));
+            return true;
+        }
+        Player target = plugin.getServer().getPlayerExact(args[0]);
+        if (target == null || !actor.canSee(target)) {
+            actor.sendMessage(MM.deserialize("<white>That player is not online.</white>"));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        String reason = joinFrom(args, 1, "Kicked by staff.");
+        if (!recordHistory(actor, target, "KICK", reason, 0)) {
+            return true;
+        }
+        target.kick(MM.deserialize(settings.getString("messages.kick-message",
+            "<white>You have been kicked: <#f72a4c>%reason%</#f72a4c></white>"),
+            Placeholder.unparsed("reason", reason)), PlayerKickEvent.Cause.PLUGIN);
+        plugin.messageActions().run(actor, settings, "messages.kick-success",
+            "<white>Kicked <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>",
+            Placeholder.unparsed("target", target.getName()), Placeholder.unparsed("reason", reason));
+        return true;
+    }
+
+    boolean warn(Player actor, String[] args) {
+        if (args.length < 2) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /warn <player> <reason>"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        if (refuseProtectedTarget(actor, target)) {
+            return true;
+        }
+        String reason = joinFrom(args, 1, "");
+        if (!recordHistory(actor, target, "WARN", reason, 0)) {
+            return true;
+        }
+        plugin.messageActions().run(actor, settings, "messages.warn-success",
+            "<white>Warned <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>",
+            Placeholder.unparsed("target", target.getName()), Placeholder.unparsed("reason", reason));
+        Player online = target.getPlayer();
+        if (online != null) {
+            plugin.messageActions().run(online, settings, "messages.warn-notification",
+                "<#f72a4c><bold>You have been warned:</bold></#f72a4c> <white>%reason%</white>",
+                Placeholder.unparsed("reason", reason));
+        }
+        return true;
+    }
+
+    boolean history(Player actor, String[] args) {
+        if (args.length != 1) {
+            actor.sendMessage(MM.deserialize("<white>Usage: /history <player>"));
+            return true;
+        }
+        OfflinePlayer target = resolveKnownPlayer(args[0]);
+        if (target == null || target.getName() == null) {
+            actor.sendMessage(MM.deserialize("<white>That player profile is not known to this server."));
+            return true;
+        }
+        String base = "players." + target.getUniqueId();
+        List<HistoryEntry> entries = new ArrayList<>();
+        collectNotes(base, entries);
+        collectHistory(base, entries);
+        entries.sort(Comparator.comparingLong(HistoryEntry::timestamp));
+        actor.sendMessage(MM.deserialize("<#f72a4c><bold>History for %player%</bold></#f72a4c> <white>(%count%)</white>",
+            Placeholder.unparsed("player", target.getName()),
+            Placeholder.unparsed("count", Integer.toString(entries.size()))));
+        if (entries.isEmpty()) {
+            actor.sendMessage(MM.deserialize("<white>No notes or moderation history recorded.</white>"));
+            return true;
+        }
+        for (HistoryEntry entry : entries) {
+            actor.sendMessage(MM.deserialize("<white>[%type%]</white> <#f72a4c>%text%</#f72a4c> <#f72a4c>— %staff%, %time%</#f72a4c>",
+                Placeholder.unparsed("type", entry.type()),
+                Placeholder.unparsed("text", entry.text()),
+                Placeholder.unparsed("staff", entry.staff()),
+                Placeholder.unparsed("time", NOTE_TIME.format(Instant.ofEpochMilli(entry.timestamp())))));
+        }
+        return true;
+    }
+
     boolean sameIp(Player actor, String[] args) {
         if (args.length > 1) {
             actor.sendMessage(MM.deserialize("<white>Usage: /sameip [player]"));
@@ -472,6 +742,81 @@ final class StaffTools implements Listener {
         return cached != null && cached.hasPlayedBefore() ? cached : null;
     }
 
+    /**
+     * Sends the configured refusal and returns true when moderation of {@code target} is not allowed:
+     * self-targeting, a non-operator acting on an operator, or a target holding
+     * {@value #MODERATION_EXEMPT}.
+     */
+    private boolean refuseProtectedTarget(Player actor, OfflinePlayer target) {
+        ModerationRefusal refusal = moderationRefusal(actor.getUniqueId().equals(target.getUniqueId()),
+            actor.isOp(), target.isOp(), moderationExempt(target));
+        if (refusal == null) {
+            return false;
+        }
+        plugin.messageActions().run(actor, settings, "messages." + refusal.messageKey, refusal.fallback,
+            Placeholder.unparsed("target", target.getName()));
+        return true;
+    }
+
+    /**
+     * Online players use their live permissions (which include Rivet's permission attachments).
+     * Offline players are resolved from Rivet's stored permissions when the permissions module is
+     * enabled, falling back to the permission's plugin.yml default (operators only).
+     */
+    private boolean moderationExempt(OfflinePlayer target) {
+        Player online = target.getPlayer();
+        if (online != null) {
+            return online.hasPermission(MODERATION_EXEMPT);
+        }
+        org.bukkit.permissions.Permission declared = plugin.getServer().getPluginManager()
+            .getPermission(MODERATION_EXEMPT);
+        boolean fallback = declared == null ? target.isOp() : declared.getDefault().getValue(target.isOp());
+        if (!plugin.moduleEnabled("permissions")) {
+            return fallback;
+        }
+        // Loaded fresh (with the permissions module's '/' path separator) because these files are only
+        // consulted for rare offline moderation actions and must not share mutable state with the module.
+        try {
+            YamlConfiguration groups = new YamlConfiguration();
+            groups.options().pathSeparator('/');
+            java.io.File groupsFile = plugin.settingsFile("permissions");
+            if (groupsFile.isFile()) {
+                groups.load(groupsFile);
+            }
+            YamlConfiguration users = new YamlConfiguration();
+            users.options().pathSeparator('/');
+            java.io.File usersFile = plugin.dataFile("permissions");
+            if (usersFile.isFile()) {
+                users.load(usersFile);
+            }
+            String base = "users/" + target.getUniqueId();
+            List<String> assigned = users.getStringList(base + "/groups").stream()
+                .map(PermissionResolver::normalize).filter(PermissionResolver::validGroupName)
+                .distinct().toList();
+            if (assigned.isEmpty() && PermissionResolver.hasGroup(groups, "default")) {
+                assigned = List.of("default");
+            }
+            return PermissionResolver.resolve(groups, assigned,
+                PermissionResolver.permissions(users, base + "/permissions"), MODERATION_EXEMPT, fallback).value();
+        } catch (IOException | org.bukkit.configuration.InvalidConfigurationException exception) {
+            plugin.getLogger().warning("Could not read Rivet permissions for moderation protection: "
+                + exception.getMessage());
+            return fallback;
+        }
+    }
+
+    /** Returns why a moderation action must be refused, or null when it may proceed. */
+    static ModerationRefusal moderationRefusal(boolean self, boolean actorOp, boolean targetOp,
+                                               boolean targetExempt) {
+        if (self) {
+            return ModerationRefusal.SELF;
+        }
+        if (targetOp && !actorOp) {
+            return ModerationRefusal.OPERATOR;
+        }
+        return targetExempt ? ModerationRefusal.EXEMPT : null;
+    }
+
     private boolean saveNotes(Player actor) {
         try {
             plugin.saveData("notes");
@@ -481,6 +826,127 @@ final class StaffTools implements Listener {
             actor.sendMessage(MM.deserialize("<white>The notes change could not be saved safely.</white>"));
             return false;
         }
+    }
+
+    private void banTarget(Player actor, OfflinePlayer target, Duration duration, String reason, String historyType) {
+        // The ban (and any resulting kick) already took effect via Bukkit's ban list before history is
+        // recorded, so a failed history save is logged but does not attempt to un-ban the target.
+        target.ban(reason, duration, actor.getName());
+        long expires = duration == null ? 0
+            : Math.addExact(System.currentTimeMillis(), duration.toMillis());
+        if (!recordHistory(actor, target, historyType, reason, expires)) {
+            return;
+        }
+        Player online = target.getPlayer();
+        if (online != null) {
+            online.kick(MM.deserialize(settings.getString("messages.ban-kick-message",
+                "<white>You have been banned: <#f72a4c>%reason%</#f72a4c></white>"),
+                Placeholder.unparsed("reason", reason)), PlayerKickEvent.Cause.BANNED);
+        }
+        plugin.messageActions().run(actor, settings, "messages.ban-success",
+            "<white>Banned <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>",
+            Placeholder.unparsed("target", target.getName()), Placeholder.unparsed("reason", reason));
+    }
+
+    private void muteTarget(Player actor, OfflinePlayer target, long expires, String reason, String historyType) {
+        long stored = expires == 0 ? -1L : expires;
+        Long previous = mutedUntil.get(target.getUniqueId());
+        Object previousStored = notes.get("players." + target.getUniqueId() + ".mute.until");
+        mutedUntil.put(target.getUniqueId(), stored);
+        notes.set("players." + target.getUniqueId() + ".mute.until", stored);
+        if (!recordHistory(actor, target, historyType, reason, expires)) {
+            if (previous == null) {
+                mutedUntil.remove(target.getUniqueId());
+            } else {
+                mutedUntil.put(target.getUniqueId(), previous);
+            }
+            notes.set("players." + target.getUniqueId() + ".mute.until", previousStored);
+            return;
+        }
+        plugin.messageActions().run(actor, settings, "messages.mute-success",
+            "<white>Muted <#f72a4c>%target%</#f72a4c>: <#f72a4c>%reason%</#f72a4c></white>",
+            Placeholder.unparsed("target", target.getName()), Placeholder.unparsed("reason", reason));
+        Player online = target.getPlayer();
+        if (online != null) {
+            plugin.messageActions().run(online, settings, "messages.mute-notification",
+                "<white>You have been muted: <#f72a4c>%reason%</#f72a4c></white>", Placeholder.unparsed("reason", reason));
+        }
+    }
+
+    private boolean recordHistory(Player actor, OfflinePlayer target, String type, String reason, long expires) {
+        String base = "players." + target.getUniqueId();
+        int id = nextHistoryId(notes, base);
+        String path = base + ".history." + id;
+        Object previousName = notes.get(base + ".name");
+        Object previousNextId = notes.get(base + ".next-history-id");
+        notes.set(base + ".name", target.getName());
+        notes.set(base + ".next-history-id", id + 1);
+        notes.set(path + ".type", type);
+        notes.set(path + ".reason", reason);
+        notes.set(path + ".staff", actor.getName());
+        notes.set(path + ".staff-uuid", actor.getUniqueId().toString());
+        notes.set(path + ".timestamp", System.currentTimeMillis());
+        if (expires > 0) {
+            notes.set(path + ".expires", expires);
+        }
+        if (!saveNotes(actor)) {
+            notes.set(path, null);
+            notes.set(base + ".name", previousName);
+            notes.set(base + ".next-history-id", previousNextId);
+            return false;
+        }
+        return true;
+    }
+
+    private static int nextHistoryId(YamlConfiguration notes, String base) {
+        int configured = Math.max(1, notes.getInt(base + ".next-history-id", 1));
+        while (notes.contains(base + ".history." + configured)) {
+            configured++;
+        }
+        return configured;
+    }
+
+    private static String joinFrom(String[] args, int start, String defaultValue) {
+        return start >= args.length ? defaultValue : String.join(" ", Arrays.copyOfRange(args, start, args.length));
+    }
+
+    private void collectNotes(String base, List<HistoryEntry> entries) {
+        var section = notes.getConfigurationSection(base + ".notes");
+        if (section == null) {
+            return;
+        }
+        for (String key : section.getKeys(false)) {
+            String path = base + ".notes." + key;
+            entries.add(new HistoryEntry("NOTE", notes.getString(path + ".text", ""),
+                notes.getString(path + ".staff", "unknown"), notes.getLong(path + ".timestamp")));
+        }
+    }
+
+    private void collectHistory(String base, List<HistoryEntry> entries) {
+        var section = notes.getConfigurationSection(base + ".history");
+        if (section == null) {
+            return;
+        }
+        for (String key : section.getKeys(false)) {
+            String path = base + ".history." + key;
+            String type = notes.getString(path + ".type", "?");
+            String reason = notes.getString(path + ".reason", "");
+            long expires = notes.getLong(path + ".expires", 0);
+            String text = expires > 0
+                ? reason + " (expires " + NOTE_TIME.format(Instant.ofEpochMilli(expires)) + ")" : reason;
+            entries.add(new HistoryEntry(type, text, notes.getString(path + ".staff", "unknown"),
+                notes.getLong(path + ".timestamp")));
+        }
+    }
+
+    List<String> moderationCompletions(String name, Player actor, String[] args) {
+        if (args.length == 1) {
+            return knownPlayerNames(actor);
+        }
+        if (args.length == 2 && (name.equals("tempban") || name.equals("tempmute"))) {
+            return List.of("10m", "1h", "1d", "7d", "30d");
+        }
+        return List.of();
     }
 
     private void cleanupToast(NamespacedKey key, Advancement advancement, List<Player> players) {
@@ -763,15 +1229,8 @@ final class StaffTools implements Listener {
     }
 
     static GodArguments parseGodArguments(String[] args) {
-        List<String> values = new ArrayList<>();
-        boolean silent = false;
-        for (String argument : args) {
-            if (argument.equalsIgnoreCase("-s")) {
-                silent = true;
-            } else {
-                values.add(argument);
-            }
-        }
+        List<String> values = CommandArgs.withoutFlag(args, "-s");
+        boolean silent = CommandArgs.hasFlag(args, "-s");
         if (values.size() > 2) {
             return new GodArguments(null, null, silent, false);
         }
@@ -1032,6 +1491,23 @@ final class StaffTools implements Listener {
 
     record NoteArguments(String player, String action, String value, int id,
                          boolean confirmed, boolean valid) {
+    }
+
+    enum ModerationRefusal {
+        SELF("moderation-self", "<white>You cannot use that moderation command on yourself.</white>"),
+        OPERATOR("moderation-protected", "<white><#f72a4c>%target%</#f72a4c> is protected from moderation.</white>"),
+        EXEMPT("moderation-protected", "<white><#f72a4c>%target%</#f72a4c> is protected from moderation.</white>");
+
+        private final String messageKey;
+        private final String fallback;
+
+        ModerationRefusal(String messageKey, String fallback) {
+            this.messageKey = messageKey;
+            this.fallback = fallback;
+        }
+    }
+
+    private record HistoryEntry(String type, String text, String staff, long timestamp) {
     }
 
     record ToastArguments(String type, Material icon, String title, String message,

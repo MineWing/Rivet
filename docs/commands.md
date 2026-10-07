@@ -1,6 +1,6 @@
 # Command reference
 
-Rivet registers 103 commands. Every command below has a stable link used by the documentation sidebar.
+Rivet registers 114 commands. Every command below has a stable link used by the documentation sidebar.
 
 ## Syntax conventions
 
@@ -18,11 +18,11 @@ Rivet registers 103 commands. Every command below has a stable link used by the 
 | Teleportation | [`/spawn`](#spawn), [`/setspawn`](#setspawn), [`/tpa`](#tpa), [`/tpahere`](#tpahere), [`/tpaccept`](#tpaccept), [`/tpdeny`](#tpdeny), [`/rtp`](#rtp), [`/near`](#near), [`/back`](#back), [`/tp`](#tp), [`/tphere`](#tphere), [`/tppos`](#tppos) |
 | Chat and identity | [`/msg`](#msg), [`/r`](#r), [`/socialspy`](#socialspy), [`/ignore`](#ignore), [`/chatcolor`](#chatcolor), [`/tag`](#tag), [`/me`](#me), [`/nick`](#nick), [`/afk`](#afk), [`/afkcheck`](#afkcheck) |
 | Inventory and items | [`/clear`](#clear), [`/i`](#i), [`/condense`](#condense), [`/donate`](#donate), [`/giveall`](#giveall), [`/scan`](#scan), [`/invsee`](#invsee), [`/enderchest`](#enderchest), [`/repair`](#repair), [`/rename`](#rename), [`/lore`](#lore), [`/hat`](#hat), [`/trash`](#trash), [`/backpack`](#backpack) |
-| World and environment | [`/flat`](#flat), [`/flatworld`](#flatworld), [`/voidworld`](#voidworld), [`/worldspawn`](#worldspawn), [`/setworldspawn`](#setworldspawn), [`/killall`](#killall), [`/findbiome`](#findbiome), [`/top`](#top), [`/tree`](#tree), [`/day`](#day), [`/night`](#night), [`/noon`](#noon), [`/midnight`](#midnight), [`/sun`](#sun), [`/rain`](#rain), [`/thunder`](#thunder) |
+| World and environment | [`/flat`](#flat), [`/flatworld`](#flatworld), [`/voidworld`](#voidworld), [`/worldspawn`](#worldspawn), [`/setworldspawn`](#setworldspawn), [`/killall`](#killall), [`/findbiome`](#findbiome), [`/top`](#top), [`/tree`](#tree), [`/day`](#day), [`/night`](#night), [`/noon`](#noon), [`/midnight`](#midnight), [`/sun`](#sun), [`/rain`](#rain), [`/thunder`](#thunder), [`/locktime`](#locktime) |
 | Gameplay systems | [`/givebreeder`](#givebreeder), [`/restorationcore`](#restorationcore), [`/kit`](#kit), [`/daily`](#daily), [`/filter`](#filter), [`/magnet`](#magnet), [`/poll`](#poll), [`/head`](#head) |
 | Player information and utilities | [`/stats`](#stats), [`/playtime`](#playtime), [`/seen`](#seen), [`/craft`](#craft), [`/anvil`](#anvil), [`/smithing`](#smithing), [`/stonecutter`](#stonecutter), [`/grindstone`](#grindstone), [`/jump`](#jump), [`/list`](#list), [`/nv`](#nv), [`/ping`](#ping), [`/ride`](#ride), [`/sit`](#sit), [`/lay`](#lay), [`/crawl`](#crawl) |
-| Staff and moderation | [`/gmc`](#gmc), [`/gms`](#gms), [`/vanish`](#vanish), [`/fly`](#fly), [`/flyspeed`](#flyspeed), [`/commandspy`](#commandspy), [`/heal`](#heal), [`/feed`](#feed), [`/god`](#god), [`/bossbarmsg`](#bossbarmsg), [`/note`](#note), [`/sameip`](#sameip), [`/toast`](#toast) |
-| Server administration | [`/perm`](#perm), [`/hologram`](#hologram), [`/clearhologram`](#clearhologram), [`/lagg`](#lagg), [`/snapshot`](#snapshot), [`/help`](#help), [`/rivet`](#rivet) |
+| Staff and moderation | [`/gmc`](#gmc), [`/gms`](#gms), [`/vanish`](#vanish), [`/fly`](#fly), [`/flyspeed`](#flyspeed), [`/commandspy`](#commandspy), [`/heal`](#heal), [`/feed`](#feed), [`/god`](#god), [`/bossbarmsg`](#bossbarmsg), [`/note`](#note), [`/sameip`](#sameip), [`/toast`](#toast), [`/ban`](#ban), [`/tempban`](#tempban), [`/unban`](#unban), [`/mute`](#mute), [`/tempmute`](#tempmute), [`/unmute`](#unmute), [`/kick`](#kick), [`/warn`](#warn), [`/history`](#history) |
+| Server administration | [`/perm`](#perm), [`/hologram`](#hologram), [`/clearhologram`](#clearhologram), [`/lagg`](#lagg), [`/snapshot`](#snapshot), [`/restart`](#restart), [`/help`](#help), [`/rivet`](#rivet) |
 
 ## Homes and warps
 
@@ -299,7 +299,7 @@ Toggle private-message social spy.
 - **Default:** `true`
 - **Aliases:** None
 
-Manage ignored private-message senders.
+Manage ignored players. Ignoring someone blocks their private messages and `/me` actions and, while `ignore.hide-public-chat` in `settings/chat.yml` is `true` (the default), hides their public chat from you too. Senders with `rivet.ignore.bypass` are never hidden.
 
 Use a player name to toggle an ignore, `list` to view ignored players, or `clear` to reset the list.
 
@@ -336,7 +336,7 @@ Choose a cosmetic tag kept separate from permission-group prefixes and suffixes.
 - **Default:** `true`
 - **Aliases:** None
 
-Broadcast an action message.
+Broadcast an action message. Muted players cannot use `/me`, and players who ignore the sender do not see it.
 
 
 <a id="nick"></a>
@@ -350,6 +350,8 @@ Broadcast an action message.
 
 Set or remove a nickname.
 
+A nickname is rejected if its plain text matches (case-insensitively) another player's username or nickname. Self-chosen nicknames must also match `allowed-pattern` in `settings/nicknames.yml` (bypassed by `rivet.nick.unicode`) and must not contain any `blocked-words`. Staff with `rivet.nick.others` setting another player's nickname (`/nick <player> <nickname|off>`) skip the pattern and blocked-word rules but not the name-matching check.
+
 
 <a id="afk"></a>
 
@@ -360,7 +362,8 @@ Set or remove a nickname.
 - **Default:** `true`
 - **Aliases:** None
 
-Toggle AFK status with an optional reason.
+Toggle AFK status with an optional reason. A muted player can still go AFK, but their reason is
+not shown or stored; they are told so by `messages.reason-hidden-muted` in `settings/afk.yml`.
 
 Use `-p:<player>` when permitted to change another player's state and `-s` for a silent change.
 
@@ -402,6 +405,8 @@ The optional item selector supports `material:amount`; append `;plain` to match 
 
 Give yourself an item.
 
+The amount defaults to 64 and cannot exceed `maximum-give-amount` in `settings/inventory.yml` (default 2304). Items that do not fit in your inventory are dropped at your feet in normal-sized stacks.
+
 
 <a id="condense"></a>
 
@@ -437,6 +442,8 @@ Donate held items to an online player.
 - **Aliases:** None
 
 Give an item to every online player.
+
+The amount is per player, defaults to 1, and cannot exceed `maximum-give-amount` in `settings/inventory.yml` (default 2304). Items that do not fit are dropped in normal-sized stacks.
 
 
 <a id="scan"></a>
@@ -524,6 +531,8 @@ Supports `add <text>`, `set <line> <text>`, `remove <line>`, and `clear`.
 - **Aliases:** None
 
 Wear the item in your main hand.
+
+Only one item from the held stack is worn; the rest stays in your hand. Your previous helmet goes into your hand when the stack was a single item, otherwise into your inventory (or dropped if it is full). A helmet with Curse of Binding cannot be swapped out unless you are in Creative mode.
 
 
 <a id="trash"></a>
@@ -620,12 +629,14 @@ Set the current world's spawn.
 
 ### `/killall`
 
-- **Syntax:** `/killall`
+- **Syntax:** `/killall [all|hostile] [-force]`
 - **Permission:** `rivet.world`
 - **Default:** `op`
 - **Aliases:** None
 
-Remove all mobs from the current world.
+Remove mobs from the current world.
+
+By default (`all`) every mob is targeted except tamed pets, mobs with a custom name, villagers, wandering traders, iron golems, and persistent mobs (those that never despawn). `hostile` targets only hostile mobs, with the same protections. Add `-force` to remove protected mobs as well. The result reports how many mobs were removed and how many were protected.
 
 
 <a id="findbiome"></a>
@@ -749,6 +760,21 @@ Start rain in the current world.
 - **Aliases:** None
 
 Start a thunderstorm in the current world.
+
+<a id="locktime"></a>
+
+### `/locktime`
+
+- **Syntax:** `/locktime [day|night|noon|midnight|current|ticks|off]`
+- **Permission:** `rivet.environment`
+- **Default:** `op`
+- **Aliases:** None
+
+Lock the current world's time so it stops advancing, or unlock it.
+
+With no argument, locks at the world's current time. `day`, `night`, `noon`, and `midnight`
+set and lock the matching time of day; a raw tick count locks at that value. `off` restores
+the normal day/night cycle. Locking cancels any in-progress `/day` or `/night` transition.
 
 
 ## Gameplay systems
@@ -1234,6 +1260,117 @@ Show a temporary advancement toast.
 
 Requires `i:<icon>` and `t:<title>`. The optional `type:<task|goal|challenge>` controls the toast frame.
 
+<a id="ban"></a>
+
+### `/ban`
+
+- **Syntax:** `/ban <player> [reason]`
+- **Permission:** `rivet.ban`
+- **Default:** `op`
+- **Aliases:** None
+
+Permanently ban a player.
+
+Targets online or previously-seen offline players. Kicks the target immediately if they're online. Recorded to `/history`. Refused when you target yourself, when the target is an operator and you are not, or when the target has `rivet.moderation.exempt` (default `op`; offline targets are checked against Rivet's stored permissions when the permissions module is enabled). The same protection applies to `/tempban`, `/mute`, `/tempmute`, `/kick` and `/warn`.
+
+<a id="tempban"></a>
+
+### `/tempban`
+
+- **Syntax:** `/tempban <player> <duration> [reason]`
+- **Permission:** `rivet.ban`
+- **Default:** `op`
+- **Aliases:** None
+
+Temporarily ban a player.
+
+`<duration>` accepts combinable `w`/`d`/`h`/`m`/`s` segments, e.g. `1d12h` or `45m`, up to a maximum of 100 years (36525 days). Expiry is enforced by Paper's ban list. Uses the same target protection as [`/ban`](#ban).
+
+<a id="unban"></a>
+
+### `/unban`
+
+- **Syntax:** `/unban <player>`
+- **Permission:** `rivet.ban`
+- **Default:** `op`
+- **Aliases:** None
+
+Pardon a banned player.
+
+<a id="mute"></a>
+
+### `/mute`
+
+- **Syntax:** `/mute <player> [reason]`
+- **Permission:** `rivet.mute`
+- **Default:** `op`
+- **Aliases:** None
+
+Permanently mute a player.
+
+Blocks public chat, `/msg`, `/r` and `/me` for the target until unmuted. Uses the same target protection as [`/ban`](#ban).
+
+<a id="tempmute"></a>
+
+### `/tempmute`
+
+- **Syntax:** `/tempmute <player> <duration> [reason]`
+- **Permission:** `rivet.mute`
+- **Default:** `op`
+- **Aliases:** None
+
+Temporarily mute a player.
+
+Same duration syntax and 100-year maximum as `/tempban`. Expiry is checked lazily the next time the player speaks. Uses the same target protection as [`/ban`](#ban).
+
+<a id="unmute"></a>
+
+### `/unmute`
+
+- **Syntax:** `/unmute <player>`
+- **Permission:** `rivet.mute`
+- **Default:** `op`
+- **Aliases:** None
+
+Unmute a player.
+
+<a id="kick"></a>
+
+### `/kick`
+
+- **Syntax:** `/kick <player> [reason]`
+- **Permission:** `rivet.kick`
+- **Default:** `op`
+- **Aliases:** None
+
+Kick an online player. Uses the same target protection as [`/ban`](#ban).
+
+<a id="warn"></a>
+
+### `/warn`
+
+- **Syntax:** `/warn <player> <reason>`
+- **Permission:** `rivet.warn`
+- **Default:** `op`
+- **Aliases:** None
+
+Record a warning for a player.
+
+Notifies the target if they're online and adds an entry to `/history`. Uses the same target protection as [`/ban`](#ban).
+
+<a id="history"></a>
+
+### `/history`
+
+- **Syntax:** `/history <player>`
+- **Permission:** `rivet.history`
+- **Default:** `op`
+- **Aliases:** None
+
+View a player's combined notes and moderation history.
+
+Merges `/note` entries with bans, mutes, kicks, and warnings into one chronological list.
+
 ## Server administration
 
 <a id="perm"></a>
@@ -1339,8 +1476,23 @@ an online, visible target. Rivet retains its confirmation and safety-backup flow
 replacement. `rivet.snapshots.dontsave` excludes a player from every automatic and manual
 backup trigger.
 
+<a id="restart"></a>
 
+### `/restart`
 
+- **Syntax:** `/restart [check|delay <duration> [reason]|cancel [reason]]`
+- **Permissions:** `rivet.restart`; `rivet.restart.manage` for `delay` and `cancel`
+- **Default:** `true` for `check`; `op` for `delay` and `cancel`
+- **Aliases:** None
+
+Check, delay, or cancel the next scheduled restart.
+
+`/restart` and `/restart check` show the time remaining until the next scheduled restart, or
+report that none is scheduled. `/restart delay <duration> [reason]` pushes the next restart
+back by a combined duration such as `30m` or `1h30m`, and `/restart cancel [reason]` skips
+straight to the following scheduled occurrence. Both broadcast the acting staff member and
+the optional reason to every online player. The `restart` module is disabled by default;
+configure `settings/restart.yml` before enabling it.
 
 <a id="help"></a>
 
@@ -1366,4 +1518,4 @@ Displays interactive, permission-aware command pages with clickable navigation.
 
 Show Rivet information or reload configuration.
 
-Run `/rivet reload` to validate and reload global and module settings. Module switch changes still require a restart.
+Run `/rivet reload` to validate and reload global and module settings. Module switch changes still require a restart, as do the `autocrafter.enabled` and `beacon-tools.enabled` switches in `settings/gameplay.yml`; the reload output lists any of these that differ from what is running. `hoppers.enabled` applies immediately.

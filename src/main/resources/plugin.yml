@@ -86,7 +86,8 @@ commands:
     usage: /restorationcore [player] [amount]
     permission: rivet.restorationcore.give
   killall:
-    description: Remove all mobs from the current world
+    description: Remove mobs from the current world, sparing pets, named mobs, villagers, and golems
+    usage: /killall [all|hostile] [-force]
     permission: rivet.world
   day:
     description: Fast-forward the current world to day
@@ -108,6 +109,10 @@ commands:
     permission: rivet.environment
   thunder:
     description: Start a thunderstorm in the current world
+    permission: rivet.environment
+  locktime:
+    description: Lock the current world's time, or unlock it
+    usage: /locktime [day|night|noon|midnight|current|ticks|off]
     permission: rivet.environment
   msg:
     description: Privately message a player
@@ -312,10 +317,6 @@ commands:
     description: Toggle automatic nearby item collection
     usage: /magnet
     permission: rivet.magnet
-  poll:
-    description: Open, create, or delete persistent yes/no polls
-    usage: /poll, /poll create <name> <description>, or /poll delete <name>
-    permission: rivet.poll
   hat:
     description: Wear the item in your main hand
     permission: rivet.hat
@@ -364,6 +365,42 @@ commands:
     description: Show a temporary advancement toast
     usage: /toast <player|all> i:<icon> t:<title> <message> [type:<type>]
     permission: rivet.toast
+  ban:
+    description: Permanently ban a player
+    usage: /ban <player> [reason]
+    permission: rivet.ban
+  tempban:
+    description: Temporarily ban a player
+    usage: /tempban <player> <duration> [reason]
+    permission: rivet.ban
+  unban:
+    description: Pardon a banned player
+    usage: /unban <player>
+    permission: rivet.ban
+  mute:
+    description: Permanently mute a player
+    usage: /mute <player> [reason]
+    permission: rivet.mute
+  tempmute:
+    description: Temporarily mute a player
+    usage: /tempmute <player> <duration> [reason]
+    permission: rivet.mute
+  unmute:
+    description: Unmute a player
+    usage: /unmute <player>
+    permission: rivet.mute
+  kick:
+    description: Kick an online player
+    usage: /kick <player> [reason]
+    permission: rivet.kick
+  warn:
+    description: Record a warning for a player
+    usage: /warn <player> <reason>
+    permission: rivet.warn
+  history:
+    description: View a player's combined notes and moderation history
+    usage: /history <player>
+    permission: rivet.history
   top:
     description: Teleport to the highest safe location
     usage: /top [player]
@@ -381,6 +418,14 @@ commands:
     description: Clear eligible dropped items or view the cleanup timer
     usage: /lagg <clear|timer>
     permission: rivet.lagg
+  restart:
+    description: Check, delay, or cancel the next scheduled restart
+    usage: /restart [check|delay <duration> [reason]|cancel [reason]]
+    permission: rivet.restart
+  poll:
+    description: Open, create, or delete persistent yes/no polls
+    usage: /poll, /poll create <name> <description>, or /poll delete <name>
+    permission: rivet.poll
   rivet:
     description: Show Rivet information or reload configuration
     usage: /rivet [reload]
@@ -516,6 +561,8 @@ permissions:
     default: false
   rivet.eggcapture:
     default: true
+  rivet.eggcapture.bypass:
+    default: op
   rivet.villager-reroll:
     default: true
   rivet.spawn:
@@ -565,6 +612,8 @@ permissions:
   rivet.nick.format:
     default: op
   rivet.nick.others:
+    default: op
+  rivet.nick.unicode:
     default: op
   rivet.stats:
     default: true
@@ -629,12 +678,6 @@ permissions:
     default: true
   rivet.magnet:
     default: true
-  rivet.poll:
-    default: true
-  rivet.poll.create:
-    default: op
-  rivet.poll.delete:
-    default: op
   rivet.filter.admin:
     default: op
   rivet.hat:
@@ -648,6 +691,18 @@ permissions:
   rivet.me.format:
     default: op
   rivet.notes:
+    default: op
+  rivet.ban:
+    default: op
+  rivet.mute:
+    default: op
+  rivet.kick:
+    default: op
+  rivet.warn:
+    default: op
+  rivet.moderation.exempt:
+    default: op
+  rivet.history:
     default: op
   rivet.ping:
     default: true
@@ -711,6 +766,16 @@ permissions:
   rivet.help:
     default: true
   rivet.lagg:
+    default: op
+  rivet.restart:
+    default: true
+  rivet.restart.manage:
+    default: op
+  rivet.poll:
+    default: true
+  rivet.poll.create:
+    default: op
+  rivet.poll.delete:
     default: op
   rivet.admin:
     default: op

@@ -1,6 +1,6 @@
 # Permissions
 
-Rivet declares 161 permission nodes. Nodes with a default of `true` are available to all players. Nodes with a default of `op` are available to server operators. A default of `false` must be granted explicitly.
+Rivet declares 168 permission nodes. Nodes with a default of `true` are available to all players. Nodes with a default of `op` are available to server operators. A default of `false` must be granted explicitly.
 
 The command permission is checked by Paper before Rivet handles the command. Additional `.others`, formatting, bypass, row, and wildcard nodes enable narrower capabilities inside a command.
 
@@ -14,7 +14,7 @@ The command permission is checked by Paper before Rivet handles the command. Add
 | `rivet.home` | `true` | [`/sethome`](commands.md#sethome), [`/home`](commands.md#home), [`/delhome`](commands.md#delhome) |
 | `rivet.warp` | `true` | [`/warp`](commands.md#warp) |
 | `rivet.warp.set` | `op` | [`/setwarp`](commands.md#setwarp), [`/delwarp`](commands.md#delwarp) |
-| `rivet.environment` | `op` | [`/day`](commands.md#day), [`/night`](commands.md#night), [`/noon`](commands.md#noon), [`/midnight`](commands.md#midnight), [`/sun`](commands.md#sun), [`/rain`](commands.md#rain), [`/thunder`](commands.md#thunder) |
+| `rivet.environment` | `op` | [`/day`](commands.md#day), [`/night`](commands.md#night), [`/noon`](commands.md#noon), [`/midnight`](commands.md#midnight), [`/sun`](commands.md#sun), [`/rain`](commands.md#rain), [`/thunder`](commands.md#thunder), [`/locktime`](commands.md#locktime) |
 | `rivet.inventory` | `op` | [`/clear`](commands.md#clear), [`/i`](commands.md#i) |
 | `rivet.inventory.clear.others` | `op` | Allows targeting another player in the related command. |
 | `rivet.inventory.scan` | `op` | [`/scan`](commands.md#scan) |
@@ -27,7 +27,7 @@ The command permission is checked by Paper before Rivet handles the command. Add
 | `rivet.message` | `true` | [`/msg`](commands.md#msg), [`/r`](commands.md#r) |
 | `rivet.socialspy` | `op` | [`/socialspy`](commands.md#socialspy) |
 | `rivet.ignore` | `true` | [`/ignore`](commands.md#ignore) |
-| `rivet.ignore.bypass` | `op` | Bypasses the related restriction or cooldown. |
+| `rivet.ignore.bypass` | `op` | Bypasses the related restriction or cooldown: the sender's private messages, `/me` and public chat reach players who ignore them. |
 | `rivet.chatcolor` | `true` | [`/chatcolor`](commands.md#chatcolor) |
 | `rivet.chatcolor.others` | `op` | Allows targeting another player in the related command. |
 | `rivet.chatcolor.advanced` | `op` | Allows additional safe MiniMessage formatting. |
@@ -72,7 +72,8 @@ The command permission is checked by Paper before Rivet handles the command. Add
 | `rivet.permissions.manage` | `op` | [`/perm`](commands.md#perm) |
 | `rivet.holograms` | `op` | [`/hologram`](commands.md#hologram) |
 | `rivet.holograms.view.*` | `false` | Wildcard parent for the related permission family. |
-| `rivet.eggcapture` | `true` | Additional capability used by the related feature. |
+| `rivet.eggcapture` | `true` | Captures mobs with thrown eggs (see [Egg capture](features.md#egg-capture)). |
+| `rivet.eggcapture.bypass` | `op` | Allows capturing other players' tamed pets and custom-named mobs. Does not override `blocked-types` or `allowed-types`. |
 | `rivet.villager-reroll` | `true` | Allows using the reroll offer in eligible villagers' normal trade screens. |
 | `rivet.spawn` | `true` | [`/spawn`](commands.md#spawn) |
 | `rivet.spawn.set` | `op` | [`/setspawn`](commands.md#setspawn) |
@@ -98,6 +99,7 @@ The command permission is checked by Paper before Rivet handles the command. Add
 | `rivet.nick` | `true` | [`/nick`](commands.md#nick) |
 | `rivet.nick.format` | `op` | Allows additional safe MiniMessage formatting. |
 | `rivet.nick.others` | `op` | Allows targeting another player in the related command. |
+| `rivet.nick.unicode` | `op` | Lets a player set their own nickname with characters outside `allowed-pattern` in `settings/nicknames.yml`. |
 | `rivet.stats` | `true` | [`/stats`](commands.md#stats) |
 | `rivet.stats.others` | `op` | Allows targeting another player in the related command. |
 | `rivet.trash` | `true` | [`/trash`](commands.md#trash) |
@@ -158,11 +160,19 @@ The command permission is checked by Paper before Rivet handles the command. Add
 | `rivet.ride` | `op` | [`/ride`](commands.md#ride) |
 | `rivet.sameip` | `op` | [`/sameip`](commands.md#sameip) |
 | `rivet.toast` | `op` | [`/toast`](commands.md#toast) |
+| `rivet.ban` | `op` | [`/ban`](commands.md#ban), [`/tempban`](commands.md#tempban), [`/unban`](commands.md#unban) |
+| `rivet.mute` | `op` | [`/mute`](commands.md#mute), [`/tempmute`](commands.md#tempmute), [`/unmute`](commands.md#unmute) |
+| `rivet.kick` | `op` | [`/kick`](commands.md#kick) |
+| `rivet.warn` | `op` | [`/warn`](commands.md#warn) |
+| `rivet.moderation.exempt` | `op` | Protects a player from [`/ban`](commands.md#ban), [`/tempban`](commands.md#tempban), [`/mute`](commands.md#mute), [`/tempmute`](commands.md#tempmute), [`/kick`](commands.md#kick) and [`/warn`](commands.md#warn). Operators are also protected from non-operators, and nobody can target themselves. |
+| `rivet.history` | `op` | [`/history`](commands.md#history) |
 | `rivet.top` | `op` | [`/top`](commands.md#top) |
 | `rivet.top.others` | `op` | Allows targeting another player in the related command. |
 | `rivet.tree` | `op` | [`/tree`](commands.md#tree) |
 | `rivet.help` | `true` | [`/help`](commands.md#help) |
 | `rivet.lagg` | `op` | [`/lagg clear`](commands.md#lagg), [`/lagg timer`](commands.md#lagg) |
+| `rivet.restart` | `true` | [`/restart`](commands.md#restart), [`/restart check`](commands.md#restart) |
+| `rivet.restart.manage` | `op` | [`/restart delay`](commands.md#restart), [`/restart cancel`](commands.md#restart) |
 | `rivet.admin` | `op` | [`/rivet`](commands.md#rivet) |
 
 ## Rivet permission module

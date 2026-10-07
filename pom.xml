@@ -11,7 +11,7 @@
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <plugin.deploy.directory>/Users/alex/Documents/1mill crops/plugins</plugin.deploy.directory>
+        <plugin.deploy.directory>/Users/alex/Documents/MinecraftServers/250k/plugins</plugin.deploy.directory>
     </properties>
 
     <repositories>

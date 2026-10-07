@@ -36,6 +36,9 @@ help: true
 lagg: true
 death-messages: true
 snapshots: true
+# Runs console commands automatically, including the restart command itself. Configure
+# settings/restart.yml before enabling this on a server you rely on.
+restart: false
 magnet: true
 polls: true
 server-list: true

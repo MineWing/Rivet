@@ -30,19 +30,40 @@ final class RivetConfig {
         "environment", "inventory", "spawn", "tpa", "kits", "afk", "join-leave",
         "announcements", "nicknames", "statistics", "trash", "utilities", "poses",
         "backpacks", "daily", "rtp", "near", "filter", "help", "lagg", "death-messages",
-        "snapshots", "magnet", "polls", "server-list", "fishing");
+        "snapshots", "restart", "magnet", "polls", "server-list", "fishing");
     static final Set<String> ENABLED_BY_DEFAULT = Set.of(
         "chat", "homes", "warps", "graves", "breeders", "egg-capture", "creeper-restoration", "tree-feller",
         "mob-heads", "villager-reroll", "holograms", "environment", "spawn", "afk", "join-leave",
         "nicknames", "statistics", "trash", "utilities", "filter", "help", "lagg",
         "death-messages", "snapshots", "magnet", "polls", "server-list", "fishing");
     static final List<String> SETTINGS = settingsFiles();
+    // Data files marked dirty on hot paths are written at most this often (5 seconds).
+    private static final long DATA_FLUSH_TICKS = 100;
+    // Per settings file, the map sections whose entries belong to the server owner. Bundled
+    // examples are only seeded when the whole section is missing; see mergeDefaults.
+    // Permissions paths use '/' as their separator.
+    static final Map<String, List<String>> USER_COLLECTIONS = Map.ofEntries(
+        Map.entry("kits", List.of("kits")),
+        Map.entry("chat", List.of("chat-styles.colors", "chat-styles.gradients", "tags.list",
+            "gui.chat-styles.items", "gui.chat-tags.items")),
+        Map.entry("permissions", List.of("groups")),
+        Map.entry("announcements", List.of("announcements")),
+        Map.entry("daily", List.of("rewards", "milestones")),
+        Map.entry("restart", List.of("day-commands")),
+        Map.entry("rtp", List.of("worlds")),
+        Map.entry("backpacks", List.of("gui.items")),
+        Map.entry("breeders", List.of("gui.items")),
+        Map.entry("filter", List.of("gui.items")),
+        Map.entry("trash", List.of("gui.items")),
+        Map.entry("polls", List.of("gui.list.items")),
+        Map.entry("snapshots", List.of("gui.categories.items", "gui.list.items",
+            "gui.player-preview.items", "gui.ender-preview.items", "gui.confirm.items")));
 
     private final RivetPlugin plugin;
     private final File settingsDirectory;
     private final File dataDirectory;
     private final Map<String, YamlConfiguration> settings = new HashMap<>();
-    private final Map<String, YamlConfiguration> data = new HashMap<>();
+    private final DataStore data;
     private final Map<String, Boolean> activeModules = new HashMap<>();
     private YamlConfiguration modules;
 
@@ -52,6 +73,7 @@ final class RivetConfig {
         dataDirectory = new File(plugin.getDataFolder(), "data");
         Files.createDirectories(settingsDirectory.toPath());
         Files.createDirectories(dataDirectory.toPath());
+        data = new DataStore(dataDirectory, plugin.getLogger());
 
         migrateFile("chat.yml", "settings/chat.yml");
         migrateFile("permissions/groups.yml", "settings/permissions.yml");
@@ -114,6 +136,8 @@ final class RivetConfig {
             modules.getBoolean(module, ENABLED_BY_DEFAULT.contains(module))));
         migrateLegacyConfig(worldsSettingsExisted);
         migrateGameplaySettings(gameplaySettingsExisted, configurationVersion);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, data::flushDirty,
+            DATA_FLUSH_TICKS, DATA_FLUSH_TICKS);
     }
 
     boolean enabled(String module) {
@@ -129,16 +153,20 @@ final class RivetConfig {
     }
 
     File dataFile(String module) {
-        return new File(dataDirectory, module + ".yml");
+        return data.file(module);
     }
 
-    YamlConfiguration data(String module) {
-        return data.computeIfAbsent(module,
-            ignored -> YamlConfiguration.loadConfiguration(dataFile(module)));
+    DataStore.DataFile data(String module) {
+        return data.data(module);
     }
 
     void saveData(String module) throws IOException {
-        data(module).save(dataFile(module));
+        data.save(module);
+    }
+
+    /** Writes data files that are waiting on the debounce timer; call once on shutdown. */
+    void flushData() {
+        data.close();
     }
 
     ReloadResult reload() throws IOException, InvalidConfigurationException {
@@ -229,18 +257,38 @@ final class RivetConfig {
             if (module.equals("permissions")) {
                 defaults.options().pathSeparator('/');
             }
-            boolean changed = false;
-            for (Map.Entry<String, Object> entry : defaults.getValues(true).entrySet()) {
-                if (!(entry.getValue() instanceof ConfigurationSection)
-                    && !configured.contains(entry.getKey())) {
-                    configured.set(entry.getKey(), entry.getValue());
-                    changed = true;
-                }
-            }
-            return changed;
+            return mergeDefaults(defaults, configured,
+                USER_COLLECTIONS.getOrDefault(module, List.of()));
         } catch (IOException exception) {
             throw new IllegalStateException("Could not read bundled settings for " + module, exception);
         }
+    }
+
+    /**
+     * Copies every leaf of {@code defaults} that {@code configured} is missing, so settings added
+     * by an update appear in existing files. Paths listed in {@code collections} are user-owned
+     * maps (kits, groups, chat styles, GUI items...): they are seeded whole only when the
+     * collection itself is absent, and their individual entries are never re-added, so a deleted
+     * kit or tag stays deleted.
+     */
+    static boolean mergeDefaults(YamlConfiguration defaults, YamlConfiguration configured,
+                                 List<String> collections) {
+        String separator = String.valueOf(defaults.options().pathSeparator());
+        // Decided up front: seeding the first entry of an absent collection must not make the
+        // rest of it look user-owned.
+        Set<String> present = new java.util.HashSet<>();
+        collections.stream().filter(configured::contains).forEach(present::add);
+        boolean changed = false;
+        for (Map.Entry<String, Object> entry : defaults.getValues(true).entrySet()) {
+            String path = entry.getKey();
+            if (entry.getValue() instanceof ConfigurationSection || configured.contains(path)
+                || present.stream().anyMatch(collection -> path.startsWith(collection + separator))) {
+                continue;
+            }
+            configured.set(path, entry.getValue());
+            changed = true;
+        }
+        return changed;
     }
 
     private boolean migrateMessageActions(String module, YamlConfiguration configured) {
@@ -623,7 +671,7 @@ final class RivetConfig {
             return false;
         }
         copyMissing(section, target, path);
-        target.save(dataFile(path.equals("auto-breeders") ? "breeders" : path));
+        saveData(path.equals("auto-breeders") ? "breeders" : path);
         source.set(path, null);
         return true;
     }

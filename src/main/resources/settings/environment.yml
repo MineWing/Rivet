@@ -41,3 +41,48 @@ weather:
       actions:
         - '[actionbar] <white>Weather set to <green>Sun</green></white>'
         - '[sound] ui.button.click'
+
+# This section is used to configure the locktime command, which freezes the current
+# world's time until unlocked with /locktime off.
+locktime:
+  day:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time locked at <green>Day</green></white>'
+        - '[sound] ui.button.click'
+
+  night:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time locked at <green>Night</green></white>'
+        - '[sound] ui.button.click'
+
+  noon:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time locked at <green>Noon</green></white>'
+        - '[sound] ui.button.click'
+
+  midnight:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time locked at <green>Midnight</green></white>'
+        - '[sound] ui.button.click'
+
+  custom:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time locked</white>'
+        - '[sound] ui.button.click'
+
+  off:
+    commands_when_ran:
+      enabled: true
+      actions:
+        - '[actionbar] <white>Time unlocked</white>'
+        - '[sound] ui.button.click'

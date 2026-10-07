@@ -1,5 +1,6 @@
 package dev.rivet;
 
+import io.papermc.paper.block.TileStateInventoryHolder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -12,6 +13,7 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Campfire;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Container;
 import org.bukkit.block.TileState;
@@ -32,11 +34,14 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.loot.Lootable;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -50,6 +55,7 @@ import java.util.logging.Level;
 final class CreeperRestoration implements Listener {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final int MAX_GIVE_AMOUNT = 2_304;
+    private static final long EXPIRY_CHECK_TICKS = 20L * 20;
 
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
@@ -58,12 +64,15 @@ final class CreeperRestoration implements Listener {
     private final List<Crater> craters = new ArrayList<>();
     private final Set<UUID> projectiles = new HashSet<>();
     private final Set<UUID> displays = new HashSet<>();
+    private final BukkitTask expiryTask;
 
     CreeperRestoration(RivetPlugin plugin) {
         this.plugin = plugin;
         settings = plugin.settings("creeper-restoration");
         coreKey = new NamespacedKey(plugin, "restoration_core");
         projectileKey = new NamespacedKey(plugin, "restoration_core_projectile");
+        expiryTask = plugin.getServer().getScheduler().runTaskTimer(plugin,
+            this::expireCraters, EXPIRY_CHECK_TICKS, EXPIRY_CHECK_TICKS);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -78,18 +87,26 @@ final class CreeperRestoration implements Listener {
             .filter(java.util.Objects::nonNull)
             .toList();
 
-        // Snapshot every block before touching a live inventory. When container contents will
-        // be restored, move them into the in-memory snapshot by clearing the live inventory
-        // before vanilla destroys the block. Yield alone does not reliably suppress inventory
-        // drops on every Paper/plugin combination, which could otherwise create a second copy.
-        blocks.forEach(this::escrowContainerContents);
+        // Snapshot every block before touching a live inventory. When held items will be
+        // restored, move them into the in-memory snapshot by clearing the live copy before
+        // vanilla destroys the block. Vanilla drops these items from the block entity's
+        // removal side effects (BlockEntity.preRemoveSideEffects) whatever the explosion's
+        // yield, so leaving them in place would create a second copy on restore. This covers
+        // containers and the other item holders: lecterns, jukeboxes, chiseled bookshelves,
+        // decorated pots, shelves, and campfires.
+        blocks.forEach(this::escrowContents);
+        // Remember the vanilla drop chance so a crater that is never repaired can still hand
+        // back what the explosion would ordinarily have dropped.
+        double dropChance = Math.max(0, Math.min(1, event.getYield()));
         event.setYield(0);
         if (blocks.isEmpty()) {
             return;
         }
 
-        Crater crater = new Crater(event.getLocation().clone(), new ArrayList<>(blocks));
+        Crater crater = new Crater(event.getLocation().clone(), new ArrayList<>(blocks),
+            System.currentTimeMillis(), dropChance);
         craters.add(crater);
+        evictExcessCraters();
         if (settings.getBoolean("explosion-debris.enabled", true)) {
             plugin.getServer().getScheduler().runTask(plugin, () -> animateExplosion(crater));
         }
@@ -222,13 +239,17 @@ final class CreeperRestoration implements Listener {
     }
 
     void shutdown() {
+        expiryTask.cancel();
         // Finish an in-progress reconstruction so a restart cannot leave half a crater repaired.
-        craters.stream().filter(crater -> crater.restoring).forEach(crater ->
-            crater.blocks.forEach(saved -> {
-                if (saved.block().getType().isAir()) {
-                    saved.restore();
-                }
-            }));
+        // Every other crater is released so its blocks and escrowed contents drop as items
+        // instead of vanishing with this in-memory list.
+        for (Crater crater : craters) {
+            if (crater.restoring) {
+                crater.blocks.forEach(this::settle);
+            } else {
+                release(crater);
+            }
+        }
         displays.forEach(uuid -> {
             Entity entity = plugin.getServer().getEntity(uuid);
             if (entity != null) {
@@ -261,44 +282,211 @@ final class CreeperRestoration implements Listener {
             || state instanceof TileState
             && settings.getBoolean("restoration.restore-other-block-entity-data", true);
         return new SavedBlock(block.getWorld(), block.getX(), block.getY(), block.getZ(),
-            block.getBlockData().clone(), preserveState ? state : null, debrisVelocity(block));
+            block.getBlockData().clone(), preserveState ? state : null, state,
+            debrisVelocity(block));
     }
 
-    private void escrowContainerContents(SavedBlock saved) {
-        if (!shouldEscrowContents(
+    private void escrowContents(SavedBlock saved) {
+        if (saved.state == null || !shouldEscrowContents(
                 settings.getBoolean("restoration.restore-containers", true),
                 settings.getBoolean("restoration.restore-container-contents", true),
-                saved.state instanceof Container)
-            || !(saved.state instanceof Container snapshot)) {
+                settings.getBoolean("restoration.restore-other-block-entity-data", true),
+                saved.state instanceof Container, holdsEscrowableItems(saved.state))) {
+            return;
+        }
+        if (saved.state instanceof Lootable lootable && lootable.hasLootTable()) {
+            // Unrolled loot only exists once vanilla generates it, which it does when it drops
+            // the block's contents. Keep neither the loot table nor any items in the snapshot,
+            // so vanilla's drop is the single copy and a released crater cannot lose it.
+            lootable.clearLootTable();
+            takeEscrowedContents(saved);
             return;
         }
         try {
-            BlockState liveState = saved.block().getState(false);
+            if (!clearLiveContents(saved.state, saved.block().getState(false))) {
+                // Fail closed: if Rivet cannot remove the live copy, vanilla's drop is the only
+                // copy, so the snapshot must not restore another.
+                takeEscrowedContents(saved);
+            }
+        } catch (RuntimeException exception) {
+            takeEscrowedContents(saved);
+            plugin.getLogger().log(Level.WARNING,
+                "Could not escrow block contents at " + saved.x + ", " + saved.y + ", "
+                    + saved.z + "; its saved contents were discarded to prevent duplication.",
+                exception);
+        }
+    }
+
+    /**
+     * Empties the live block's items so vanilla's removal side effects have nothing to drop.
+     * Returns false when the live block does not match the snapshot or still holds items.
+     */
+    private static boolean clearLiveContents(BlockState snapshot, BlockState liveState) {
+        if (liveState.getType() != snapshot.getType()) {
+            return false;
+        }
+        if (snapshot instanceof Container) {
             if (!(liveState instanceof Container live)) {
-                // Fail closed: if Rivet cannot remove the live copy, do not restore another.
-                snapshot.getSnapshotInventory().clear();
-                return;
+                return false;
             }
             if (live instanceof Chest chest) {
                 // getInventory() combines both halves of a double chest. Clear only the block
                 // represented by this saved snapshot so a surviving half is never emptied.
                 chest.getBlockInventory().clear();
-                if (!chest.getBlockInventory().isEmpty()) {
-                    snapshot.getSnapshotInventory().clear();
+                return chest.getBlockInventory().isEmpty();
+            }
+            live.getInventory().clear();
+            return live.getInventory().isEmpty();
+        }
+        if (snapshot instanceof TileStateInventoryHolder) {
+            if (!(liveState instanceof TileStateInventoryHolder live)) {
+                return false;
+            }
+            live.getInventory().clear();
+            return live.getInventory().isEmpty();
+        }
+        if (snapshot instanceof Campfire) {
+            if (!(liveState instanceof Campfire live)) {
+                return false;
+            }
+            // A non-snapshot campfire state writes straight to the live block entity.
+            boolean empty = true;
+            for (int slot = 0; slot < live.getSize(); slot++) {
+                live.setItem(slot, null);
+                empty &= isEmpty(live.getItem(slot));
+            }
+            return empty;
+        }
+        return false;
+    }
+
+    private void expireCraters() {
+        long lifetimeMinutes = settings.getLong("restoration.crater-lifetime-minutes", 30);
+        long now = System.currentTimeMillis();
+        Iterator<Crater> iterator = craters.iterator();
+        while (iterator.hasNext()) {
+            Crater crater = iterator.next();
+            if (!crater.restoring && expired(crater.createdAt, now, lifetimeMinutes)) {
+                iterator.remove();
+                release(crater);
+            }
+        }
+    }
+
+    private void evictExcessCraters() {
+        int excess = excessCraters(craters.size(),
+            settings.getInt("restoration.maximum-craters", 200));
+        Iterator<Crater> iterator = craters.iterator();
+        while (excess > 0 && iterator.hasNext()) {
+            // The list is in creation order, so the oldest idle craters are evicted first.
+            Crater crater = iterator.next();
+            if (!crater.restoring) {
+                iterator.remove();
+                release(crater);
+                excess--;
+            }
+        }
+    }
+
+    /**
+     * Gives back what the explosion would have dropped for every block that was never rebuilt.
+     * Escrowed container contents always drop because Rivet holds the only copy. The block
+     * itself drops, at the explosion's original yield, only while its space is still empty.
+     */
+    private void release(Crater crater) {
+        for (SavedBlock saved : crater.blocks) {
+            try {
+                if (saved.settled) {
+                    continue;
                 }
-            } else {
-                live.getInventory().clear();
-                if (!live.getInventory().isEmpty()) {
-                    snapshot.getSnapshotInventory().clear();
+                boolean stillAir = saved.block().getType().isAir();
+                dropEscrowedContents(saved);
+                if (dropsBlock(stillAir, crater.dropChance,
+                    ThreadLocalRandom.current().nextDouble())) {
+                    dropItems(saved, blockDrops(saved));
+                }
+            } catch (RuntimeException exception) {
+                plugin.getLogger().log(Level.WARNING,
+                    "Could not release a creeper crater block at " + saved.x + ", " + saved.y
+                        + ", " + saved.z + ".", exception);
+            }
+        }
+    }
+
+    /**
+     * Rebuilds a saved block if its space is still empty. Otherwise something was built there,
+     * so the escrowed container contents drop at that location instead of being discarded.
+     */
+    private void settle(SavedBlock saved) {
+        if (saved.settled) {
+            return;
+        }
+        if (saved.block().getType().isAir()) {
+            restore(saved);
+        } else {
+            dropEscrowedContents(saved);
+        }
+    }
+
+    private void restore(SavedBlock saved) {
+        saved.settled = true;
+        if (saved.state == null || !saved.state.update(true, false)) {
+            saved.block().setBlockData(saved.data, false);
+            // The snapshot (and its escrowed contents) was not applied, so hand them back.
+            dropItems(saved, takeEscrowedContents(saved));
+        }
+    }
+
+    private void dropEscrowedContents(SavedBlock saved) {
+        saved.settled = true;
+        dropItems(saved, takeEscrowedContents(saved));
+    }
+
+    private static List<ItemStack> takeEscrowedContents(SavedBlock saved) {
+        List<ItemStack> contents = new ArrayList<>();
+        if (saved.state instanceof TileStateInventoryHolder holder) {
+            // For chests this is the snapshot of this half only, so the other half is never
+            // touched. Containers, lecterns, jukeboxes, chiseled bookshelves, decorated pots,
+            // and shelves all expose their held items through this snapshot inventory.
+            for (ItemStack item : holder.getSnapshotInventory().getContents()) {
+                if (!isEmpty(item)) {
+                    contents.add(item.clone());
                 }
             }
-        } catch (RuntimeException exception) {
-            snapshot.getSnapshotInventory().clear();
-            plugin.getLogger().log(Level.WARNING,
-                "Could not escrow container contents at " + saved.x + ", " + saved.y + ", "
-                    + saved.z + "; its saved contents were discarded to prevent duplication.",
-                exception);
+            // Clear the escrow so no later path can drop or restore these items a second time.
+            holder.getSnapshotInventory().clear();
+        } else if (saved.state instanceof Campfire campfire) {
+            for (int slot = 0; slot < campfire.getSize(); slot++) {
+                ItemStack item = campfire.getItem(slot);
+                if (!isEmpty(item)) {
+                    contents.add(item.clone());
+                }
+                campfire.setItem(slot, null);
+            }
         }
+        return contents;
+    }
+
+    private static boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir() || item.getAmount() <= 0;
+    }
+
+    private Collection<ItemStack> blockDrops(SavedBlock saved) {
+        try {
+            return saved.dropState.getDrops();
+        } catch (RuntimeException exception) {
+            Material material = saved.data.getPlacementMaterial();
+            return material.isItem() && !material.isAir()
+                ? List.of(new ItemStack(material)) : List.of();
+        }
+    }
+
+    private static void dropItems(SavedBlock saved, Collection<ItemStack> items) {
+        if (items.isEmpty()) {
+            return;
+        }
+        Location location = saved.target().add(.5, .5, .5);
+        items.forEach(item -> saved.world.dropItemNaturally(location, item));
     }
 
     private Vector debrisVelocity(Block block) {
@@ -355,10 +543,17 @@ final class CreeperRestoration implements Listener {
                 .thenComparingDouble(saved -> saved.target().distanceSquared(crater.center)))
             .toList();
         if (repairable.isEmpty()) {
+            // Everything was built over; hand back the escrowed contents and forget the crater.
+            craters.remove(crater);
+            release(crater);
             return false;
         }
 
         crater.restoring = true;
+        // Blocks built over since the explosion will not be rebuilt; return their contents now.
+        Set<SavedBlock> rebuilding = new HashSet<>(repairable);
+        crater.blocks.stream().filter(saved -> !rebuilding.contains(saved))
+            .forEach(this::dropEscrowedContents);
         int totalDuration = Math.max(1,
             settings.getInt("restoration.total-duration-ticks", 70));
         int flightDuration = Math.max(1, Math.min(totalDuration,
@@ -392,8 +587,10 @@ final class CreeperRestoration implements Listener {
                         if (display != null) {
                             active.add(new ReturningBlock(display, saved, tick));
                         } else if (saved.block().getType().isAir()) {
-                            saved.restore();
+                            restore(saved);
                             restored++;
+                        } else {
+                            dropEscrowedContents(saved);
                         }
                     }
 
@@ -412,10 +609,12 @@ final class CreeperRestoration implements Listener {
                         removeDisplay(returning.display);
                         iterator.remove();
                         if (returning.saved.block().getType().isAir()) {
-                            returning.saved.restore();
+                            restore(returning.saved);
                             restored++;
                             placedThisTick = true;
                             impact(returning.saved.target());
+                        } else {
+                            dropEscrowedContents(returning.saved);
                         }
                     }
                     if (placedThisTick) {
@@ -431,12 +630,14 @@ final class CreeperRestoration implements Listener {
                     tick++;
                 } catch (RuntimeException exception) {
                     active.forEach(block -> removeDisplay(block.display));
-                    repairable.forEach(saved -> {
-                        if (saved.block().getType().isAir()) {
-                            saved.restore();
+                    craters.remove(crater);
+                    crater.blocks.forEach(saved -> {
+                        try {
+                            settle(saved);
+                        } catch (RuntimeException ignored) {
+                            // Keep settling the rest; the original failure is logged below.
                         }
                     });
-                    craters.remove(crater);
                     plugin.getLogger().log(Level.WARNING,
                         "A creeper crater animation failed; its remaining blocks were restored immediately.",
                         exception);
@@ -619,8 +820,70 @@ final class CreeperRestoration implements Listener {
         return restoreContainers && restoreContainerContents && savedContainer;
     }
 
-    private record SavedBlock(World world, int x, int y, int z, BlockData data,
-                              BlockState state, Vector velocity) {
+    /**
+     * Containers follow the container settings. Other block entities that hold items (and
+     * whose items vanilla drops when the block is removed) are escrowed whenever their block
+     * entity data is restored; otherwise only block data is restored and vanilla's drop stands.
+     */
+    static boolean shouldEscrowContents(boolean restoreContainers,
+                                        boolean restoreContainerContents,
+                                        boolean restoreOtherBlockEntityData,
+                                        boolean savedContainer,
+                                        boolean savedOtherItemHolder) {
+        if (savedContainer) {
+            return shouldEscrowContents(restoreContainers, restoreContainerContents, true);
+        }
+        return restoreOtherBlockEntityData && savedOtherItemHolder;
+    }
+
+    /** Block states whose items vanilla drops when the block is removed, e.g. by explosion. */
+    static boolean holdsEscrowableItems(BlockState state) {
+        return state instanceof TileStateInventoryHolder || state instanceof Campfire;
+    }
+
+    static boolean expired(long createdAtMillis, long nowMillis, long lifetimeMinutes) {
+        if (lifetimeMinutes <= 0) {
+            return false;
+        }
+        long lifetimeMillis = lifetimeMinutes >= Long.MAX_VALUE / 60_000
+            ? Long.MAX_VALUE : lifetimeMinutes * 60_000;
+        return nowMillis - createdAtMillis >= lifetimeMillis;
+    }
+
+    static int excessCraters(int stored, int maximum) {
+        return Math.max(0, stored - Math.max(1, maximum));
+    }
+
+    static boolean dropsBlock(boolean stillAir, double dropChance, double roll) {
+        return stillAir && roll < dropChance;
+    }
+
+    private static final class SavedBlock {
+        private final World world;
+        private final int x;
+        private final int y;
+        private final int z;
+        private final BlockData data;
+        /** Restored on rebuild; null when only the block data is restored. */
+        private final BlockState state;
+        /** Placed snapshot used only to calculate the block's normal drops on release. */
+        private final BlockState dropState;
+        private final Vector velocity;
+        /** True once the block was rebuilt or its escrowed contents were handed back. */
+        private boolean settled;
+
+        private SavedBlock(World world, int x, int y, int z, BlockData data, BlockState state,
+                           BlockState dropState, Vector velocity) {
+            this.world = world;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.data = data;
+            this.state = state;
+            this.dropState = dropState;
+            this.velocity = velocity;
+        }
+
         private Block block() {
             return world.getBlockAt(x, y, z);
         }
@@ -628,22 +891,22 @@ final class CreeperRestoration implements Listener {
         private Location target() {
             return new Location(world, x, y, z);
         }
-
-        private void restore() {
-            if (state == null || !state.update(true, false)) {
-                block().setBlockData(data, false);
-            }
-        }
     }
 
     private static final class Crater {
         private final Location center;
         private final List<SavedBlock> blocks;
+        private final long createdAt;
+        /** The explosion's original yield, used when an unrepaired crater is released. */
+        private final double dropChance;
         private boolean restoring;
 
-        private Crater(Location center, List<SavedBlock> blocks) {
+        private Crater(Location center, List<SavedBlock> blocks, long createdAt,
+                       double dropChance) {
             this.center = center;
             this.blocks = blocks;
+            this.createdAt = createdAt;
+            this.dropChance = dropChance;
         }
     }
 

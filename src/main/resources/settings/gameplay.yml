@@ -2,9 +2,19 @@
 crop-trample-protection: true
 water-harvest-replanting: true
 iron-golem-poppy-drops: true
+# Pairs with a datapack that always drops glass; here we just make it break in one hit.
+glass-instant-break: true
 
 hoppers:
+  # Applies immediately with /rivet reload; no restart needed.
   enabled: true
-  # Vanilla uses 8 ticks. 2 ticks is approximately 10 transfers/second.
+  # Vanilla uses 8 ticks. Also applied by /rivet reload. 2 ticks is approximately 10 transfers/second.
   # Values below 1 are treated as 1.
   transfer-cooldown-ticks: 2
+
+# Changes to these switches require a server restart. /rivet reload warns
+# when either one differs from what is currently running.
+autocrafter:
+  enabled: true
+beacon-tools:
+  enabled: true

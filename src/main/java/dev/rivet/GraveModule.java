@@ -80,7 +80,10 @@ final class GraveModule implements Listener {
             : null;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    // MONITOR + ignoreCancelled: PlayerDeathEvent is cancellable, and a grave created for a
+    // death another plugin cancels (duels, arenas, second-chance totems) would duplicate the
+    // inventory the player keeps. Paper still honours drop changes made at MONITOR.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getPlayer();
         Location death = player.getLocation();

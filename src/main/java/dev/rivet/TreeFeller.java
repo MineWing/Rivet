@@ -27,14 +27,17 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,10 +164,15 @@ final class TreeFeller implements Listener {
 
     private void mineVein(BlockBreakEvent event, Player player, Block base, ItemStack pickaxe) {
         Material mined = base.getType();
-        Set<Block> vein = connectedOres(base);
-        if (vein.isEmpty()) {
+        Set<Block> connected = connectedOres(base);
+        if (connected.isEmpty()) {
             return;
         }
+        // Only mine as many ores as the pickaxe can pay for, nearest first, so a nearly broken
+        // pickaxe cannot finish a whole vein with its Fortune/Silk Touch clone. The base ore is
+        // always the nearest, and a limit of one falls back to the vanilla single-block break.
+        Set<Block> vein = new LinkedHashSet<>(closestOres(connected, base,
+            Math.max(1, affordableOres(pickaxe, player, connected.size()))));
         if (vein.size() > 1) {
             if (!canBreak(vein, base, player)) {
                 return;
@@ -538,6 +546,47 @@ final class TreeFeller implements Listener {
 
     static boolean isPickaxe(Material material) {
         return material.name().endsWith("_PICKAXE");
+    }
+
+    private static int affordableOres(ItemStack pickaxe, Player player, int veinSize) {
+        boolean free = player.getGameMode() == GameMode.CREATIVE;
+        if (!(pickaxe.getItemMeta() instanceof Damageable damageable)) {
+            return affordableOres(veinSize, 0, 0, true);
+        }
+        int maximum = damageable.hasMaxDamage()
+            ? damageable.getMaxDamage() : pickaxe.getType().getMaxDurability();
+        return affordableOres(veinSize, maximum, damageable.getDamage(),
+            free || damageable.isUnbreakable());
+    }
+
+    /**
+     * How many ores of a vein the tool can pay for: one durability point each, capped by what is
+     * left (maximum - damage). Unbreaking is still applied by ItemStack.damage, so this is the
+     * worst case. Tools without durability (or unbreakable/creative use) can mine the whole vein.
+     */
+    static int affordableOres(int veinSize, int maxDurability, int damage, boolean unlimited) {
+        if (unlimited || maxDurability <= 0) {
+            return Math.max(0, veinSize);
+        }
+        return Math.clamp((long) maxDurability - damage, 0, Math.max(0, veinSize));
+    }
+
+    /** The {@code limit} ores nearest to {@code base} (by squared distance), nearest first. */
+    static List<Block> closestOres(Set<Block> vein, Block base, int limit) {
+        return vein.stream()
+            .sorted(Comparator.comparingLong((Block ore) -> distanceSquared(ore, base))
+                .thenComparingInt(Block::getY)
+                .thenComparingInt(Block::getX)
+                .thenComparingInt(Block::getZ))
+            .limit(Math.max(0, limit))
+            .toList();
+    }
+
+    private static long distanceSquared(Block a, Block b) {
+        long x = a.getX() - b.getX();
+        long y = a.getY() - b.getY();
+        long z = a.getZ() - b.getZ();
+        return x * x + y * y + z * z;
     }
 
     static String oreKey(Material material) {

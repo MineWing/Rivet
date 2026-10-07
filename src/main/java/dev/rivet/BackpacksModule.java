@@ -29,13 +29,13 @@ final class BackpacksModule implements Listener {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
-    private final YamlConfiguration data;
+    private final DataStore.DataFile data;
     private final Map<UUID, Inventory> open = new HashMap<>();
 
     BackpacksModule(RivetPlugin plugin) {
         this.plugin = plugin;
         settings = plugin.settings("backpacks");
-        data = plugin.data("backpacks");
+        data = (DataStore.DataFile) plugin.data("backpacks");
     }
 
     boolean command(Player player, String[] args) {
@@ -156,14 +156,26 @@ final class BackpacksModule implements Listener {
         if (open.get(player) != inventory) {
             return;
         }
+        // Clicks only update memory and mark the file dirty; it is written within a few seconds,
+        // and immediately on close, quit and shutdown.
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (open.get(player) == inventory) {
-                save(player, inventory);
+                store(player, inventory);
+                data.markDirty();
             }
         });
     }
 
     private void save(UUID player, Inventory inventory) {
+        store(player, inventory);
+        try {
+            data.saveNow();
+        } catch (IOException exception) {
+            plugin.getLogger().severe("Could not save data/backpacks.yml: " + exception.getMessage());
+        }
+    }
+
+    private void store(UUID player, Inventory inventory) {
         List<?> stored = data.getList(path(player), List.of());
         List<ItemStack> previous = new ArrayList<>(java.util.Collections.nCopies(54, null));
         for (int slot = 0; slot < Math.min(54, stored.size()); slot++) {
@@ -183,11 +195,6 @@ final class BackpacksModule implements Listener {
         }
         List<ItemStack> contents = mergeContents(previous, visible, 54);
         data.set(path(player), contents);
-        try {
-            plugin.saveData("backpacks");
-        } catch (IOException exception) {
-            plugin.getLogger().severe("Could not save data/backpacks.yml: " + exception.getMessage());
-        }
     }
 
     private void message(Player player, String key, String fallback) {

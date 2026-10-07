@@ -26,13 +26,16 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Enemy;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityInteractEvent;
@@ -67,6 +70,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,9 +83,10 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class RivetPlugin extends JavaPlugin implements Listener {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final String LEGACY_WORLD_MARKER = ".rivet-test-world";
-    private static final long MINECRAFT_DAY_TICKS = 24_000;
     private static final double DEFAULT_MOB_HEAD_CHANCE = .03;
     private static final double DEFAULT_MOB_HEAD_LOOTING_BONUS = .01;
+    private static final int WATER_CROP_TICK_INTERVAL = 5;
+    private static final int WATER_CROP_TIMEOUT_TICKS = 1_200;
     private static final Map<EntityType, String> MOB_HEAD_TEXTURES = loadMobHeadTextures();
     private static final ChunkGenerator VOID_GENERATOR = new ChunkGenerator() {
         @Override
@@ -92,10 +97,11 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     private final Set<UUID> vanished = new HashSet<>();
     private final Set<UUID> flightEnabled = new HashSet<>();
     private final Set<UUID> biomeSearches = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private final Map<UUID, BukkitRunnable> timeTransitions = new HashMap<>();
     private final Map<WaterCropKey, PendingWaterCrop> pendingWaterCrops = new HashMap<>();
     private BukkitTask waterCropTask;
     private ChatModule chat;
+    private AutoCrafter autoCrafter;
+    private BeaconTools beaconTools;
     private AutoBreeder autoBreeder;
     private EggCapture eggCapture;
     private VillagerRerollModule villagerReroll;
@@ -130,6 +136,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     private DeathMessagesModule deathMessages;
     private FishingModule fishing;
     private SnapshotModule snapshots;
+    private EnvironmentModule environment;
+    private RestartModule restart;
     private MagnetModule magnet;
     private PollModule polls;
     private ServerListModule serverList;
@@ -160,6 +168,14 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             || moduleEnabled("tpa") || moduleEnabled("graves") || moduleEnabled("rtp")) {
             delayedTeleports = new DelayedTeleport(this);
             getServer().getPluginManager().registerEvents(delayedTeleports, this);
+        }
+        if (settings("gameplay").getBoolean("autocrafter.enabled", true)) {
+            autoCrafter = new AutoCrafter(this);
+            getServer().getPluginManager().registerEvents(autoCrafter, this);
+        }
+        if (settings("gameplay").getBoolean("beacon-tools.enabled", true)) {
+            beaconTools = new BeaconTools(this);
+            getServer().getPluginManager().registerEvents(beaconTools, this);
         }
         if (moduleEnabled("breeders")) {
             autoBreeder = new AutoBreeder(this);
@@ -282,6 +298,22 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             filter = new FilterModule(this);
             getServer().getPluginManager().registerEvents(filter, this);
         }
+        if (moduleEnabled("help")) {
+            help = new HelpModule(this);
+        }
+        // Always registered; hoppers.enabled is checked per event so /rivet reload can toggle it.
+        hoppers = new HopperModule(this);
+        getServer().getPluginManager().registerEvents(hoppers, this);
+        if (moduleEnabled("staff")) {
+            staffTools = new StaffTools(this);
+            getServer().getPluginManager().registerEvents(staffTools, this);
+        }
+        if (moduleEnabled("environment")) {
+            environment = new EnvironmentModule(this);
+        }
+        if (moduleEnabled("restart")) {
+            restart = new RestartModule(this);
+        }
         if (moduleEnabled("magnet")) {
             magnet = new MagnetModule(this);
         }
@@ -292,17 +324,6 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (moduleEnabled("server-list")) {
             serverList = new ServerListModule(this);
             getServer().getPluginManager().registerEvents(serverList, this);
-        }
-        if (moduleEnabled("help")) {
-            help = new HelpModule(this);
-        }
-        if (settings("gameplay").getBoolean("hoppers.enabled", true)) {
-            hoppers = new HopperModule(this);
-            getServer().getPluginManager().registerEvents(hoppers, this);
-        }
-        if (moduleEnabled("staff")) {
-            staffTools = new StaffTools(this);
-            getServer().getPluginManager().registerEvents(staffTools, this);
         }
         getServer().getPluginManager().registerEvents(this, this);
         if (permissions != null) {
@@ -327,6 +348,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         getServer().getOnlinePlayers().stream()
             .filter(player -> flightEnabled.contains(player.getUniqueId()))
             .forEach(this::disableFlight);
+        if (autoCrafter != null) autoCrafter.shutdown();
+        if (beaconTools != null) beaconTools.shutdown();
         if (autoBreeder != null) {
             autoBreeder.shutdown();
         }
@@ -378,9 +401,6 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (filter != null) {
             filter.shutdown();
         }
-        if (magnet != null) {
-            magnet.shutdown();
-        }
         if (scans != null) {
             scans.shutdown();
         }
@@ -394,9 +414,20 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (delayedTeleports != null) {
             delayedTeleports.shutdown();
         }
-        timeTransitions.values().forEach(BukkitRunnable::cancel);
-        timeTransitions.clear();
+        if (environment != null) {
+            environment.shutdown();
+        }
+        if (restart != null) {
+            restart.shutdown();
+        }
+        if (magnet != null) {
+            magnet.shutdown();
+        }
         shutdownWaterCropReplanting();
+        // Last: modules above may have marked data dirty; write it before the server stops.
+        if (files != null) {
+            files.flushData();
+        }
     }
 
     GuiActions guiActions() {
@@ -432,6 +463,10 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
 
     private boolean ironGolemPoppyDrops() {
         return settings("gameplay").getBoolean("iron-golem-poppy-drops", true);
+    }
+
+    private boolean glassInstantBreak() {
+        return settings("gameplay").getBoolean("glass-instant-break", true);
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -476,6 +511,18 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler(ignoreCancelled = true)
+    public void onBlockDamage(BlockDamageEvent event) {
+        if (glassInstantBreak() && isGlass(event.getBlock().getType())) {
+            event.setInstaBreak(true);
+        }
+    }
+
+    private static boolean isGlass(Material material) {
+        String name = material.name();
+        return name.endsWith("GLASS") || name.endsWith("GLASS_PANE");
+    }
+
+    @EventHandler(ignoreCancelled = true)
     public void onEntityInteract(EntityInteractEvent event) {
         if (cropTrampleProtection() && event.getBlock().getType() == Material.FARMLAND) {
             event.setCancelled(true);
@@ -489,7 +536,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         }
         Block block = event.getBlock();
         PlantingReservation reservation = reservePlantingItem(block.getType(), event.getDrops());
-        if (reservation == null) {
+        // Replanting is paid for by a seed from the drops; no seed means no free crop.
+        if (!queuesWaterReplant(reservation)) {
             return;
         }
         WaterCropKey key = new WaterCropKey(block.getWorld().getUID(), block.getBlockKey());
@@ -499,8 +547,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             refundPlantingItem(block, replaced);
         }
         if (waterCropTask == null) {
-            waterCropTask = getServer().getScheduler().runTaskTimer(
-                this, this::tickPendingWaterCrops, 5, 5);
+            waterCropTask = getServer().getScheduler().runTaskTimer(this, this::tickPendingWaterCrops,
+                WATER_CROP_TICK_INTERVAL, WATER_CROP_TICK_INTERVAL);
         }
     }
 
@@ -509,29 +557,35 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             pendingWaterCrops.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<WaterCropKey, PendingWaterCrop> entry = iterator.next();
-            World world = getServer().getWorld(entry.getKey().worldId());
-            if (world == null) {
-                continue;
-            }
-            Block block = world.getBlockAtKey(entry.getKey().blockKey());
             PendingWaterCrop crop = entry.getValue();
-            if (block.getType() == crop.crop()) {
-                refundPlantingItem(block, crop);
-                iterator.remove();
-                continue;
-            }
+            // Age every entry first so unloaded worlds and chunks still expire.
+            int elapsed = crop.addElapsedTicks(WATER_CROP_TICK_INTERVAL);
+            long blockKey = entry.getKey().blockKey();
+            World world = getServer().getWorld(entry.getKey().worldId());
+            // Never touch blocks in unloaded chunks; getBlockAtKey(...).getType() would load them.
+            boolean loaded = world != null && world.isChunkLoaded(
+                Block.getBlockKeyX(blockKey) >> 4, Block.getBlockKeyZ(blockKey) >> 4);
+            Block block = loaded ? world.getBlockAtKey(blockKey) : null;
             BlockData cropData = crop.crop().createBlockData();
-            if (block.isEmpty() && block.canPlace(cropData)) {
-                if (cropData instanceof Ageable ageable) {
-                    ageable.setAge(0);
+            WaterCropStep step = waterCropStep(loaded,
+                loaded && block.getType() == crop.crop(),
+                loaded && block.isEmpty() && block.canPlace(cropData),
+                crop.reservation().consumed(), elapsed);
+            switch (step) {
+                case REPLANT -> {
+                    if (cropData instanceof Ageable ageable) {
+                        ageable.setAge(0);
+                    }
+                    block.setBlockData(cropData);
+                    iterator.remove();
                 }
-                block.setBlockData(cropData);
-                iterator.remove();
-                continue;
-            }
-            if (crop.addElapsedTicks(5) >= 1_200) {
-                refundPlantingItem(block, crop);
-                iterator.remove();
+                case REFUND -> {
+                    refundPlantingItem(block, crop);
+                    iterator.remove();
+                }
+                case DISCARD -> iterator.remove();
+                case WAIT -> {
+                }
             }
         }
         if (pendingWaterCrops.isEmpty() && waterCropTask != null) {
@@ -631,6 +685,9 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (name.equals("scan")) {
             return scans.command(sender, args);
         }
+        if (name.equals("restart")) {
+            return restart.command(sender, args);
+        }
         if (name.equals("poll")) {
             return polls.command(sender, args);
         }
@@ -665,9 +722,9 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             case "condense" -> itemTools.condense(player, args);
             case "donate" -> itemTools.donate(player, args);
             case "giveall" -> itemTools.giveAll(player, args);
-            case "killall" -> killAll(player);
-            case "day", "night", "noon", "midnight" -> setTime(player, name);
-            case "sun", "rain", "thunder" -> setWeather(player, name);
+            case "killall" -> killAll(player, args);
+            case "day", "night", "noon", "midnight", "sun", "rain", "thunder", "locktime" ->
+                environment.command(player, name, args);
             case "msg" -> chat.message(player, args);
             case "r" -> chat.reply(player, args);
             case "socialspy" -> chat.socialSpy(player, args);
@@ -689,6 +746,15 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             case "note" -> staffTools.note(player, args);
             case "sameip" -> staffTools.sameIp(player, args);
             case "toast" -> staffTools.toast(player, args);
+            case "ban" -> staffTools.ban(player, args);
+            case "tempban" -> staffTools.tempBan(player, args);
+            case "unban" -> staffTools.unban(player, args);
+            case "mute" -> staffTools.mute(player, args);
+            case "tempmute" -> staffTools.tempMute(player, args);
+            case "unmute" -> staffTools.unmute(player, args);
+            case "kick" -> staffTools.kick(player, args);
+            case "warn" -> staffTools.warn(player, args);
+            case "history" -> staffTools.history(player, args);
             case "spawn", "setspawn" -> spawn.command(player, name, args);
             case "tpa", "tpahere", "tpaccept", "tpdeny" -> tpa.command(player, name, args);
             case "kit" -> kits.command(player, args);
@@ -734,6 +800,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                     : args.length == 2 && args[0].equalsIgnoreCase("tp") ? testWorlds(null)
                     : args.length == 2 && args[0].equalsIgnoreCase("reset") ? testWorlds("flat") : List.of();
                 case "voidworld" -> args.length == 1 ? List.of("create") : List.of();
+                case "locktime" -> environment.completions(args);
                 case "home", "delhome" -> args.length == 1 && sender instanceof Player player
                     ? homeNames(player) : List.of();
                 case "warp", "delwarp" -> args.length == 1 ? warpNames() : List.of();
@@ -744,6 +811,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                 case "givebreeder" -> autoBreeder.completions(sender, args);
                 case "restorationcore" -> creeperRestoration.completions(sender, args);
                 case "scan" -> scans.completions(sender, args);
+                case "restart" -> restart.completions(sender, args);
                 case "poll" -> polls.completions(sender, args);
                 case "msg", "tp", "tphere" -> args.length == 1 ? getServer().getOnlinePlayers().stream()
                     .filter(player -> !(sender instanceof Player viewer) || viewer.canSee(player))
@@ -781,6 +849,9 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                     ? staffTools.sameIpCompletions(player, args) : List.of();
                 case "toast" -> sender instanceof Player player
                     ? staffTools.toastCompletions(player, args) : List.of();
+                case "ban", "tempban", "unban", "mute", "tempmute", "unmute", "kick", "warn", "history" ->
+                    sender instanceof Player player
+                        ? staffTools.moderationCompletions(command.getName(), player, args) : List.of();
                 case "ping" -> sender instanceof Player player
                     ? utilities.completions(player, "ping", args) : List.of();
                 case "top" -> args.length == 1 && sender.hasPermission("rivet.top.others")
@@ -802,6 +873,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                 case "rename" -> args.length == 1 ? List.of("clear") : List.of();
                 case "lore" -> args.length == 1 ? List.of("add", "set", "remove", "clear") : List.of();
                 case "lagg" -> args.length == 1 ? List.of("clear", "timer") : List.of();
+                case "killall" -> args.length == 1 ? List.of("all", "hostile", "-force")
+                    : args.length == 2 && !args[0].equalsIgnoreCase("-force") ? List.of("-force") : List.of();
                 case "snapshot" -> snapshots.completions(sender, args);
                 case "rivet" -> args.length == 1 ? List.of("reload") : List.of();
                 default -> List.of();
@@ -1195,7 +1268,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             .sorted(String.CASE_INSENSITIVE_ORDER).toList();
     }
 
-    private List<String> homeNames(Player player) {
+    List<String> homeNames(OfflinePlayer player) {
         Set<String> names = new HashSet<>();
         var saved = homes.getConfigurationSection("homes." + player.getUniqueId() + ".locations");
         if (saved != null) {
@@ -1369,9 +1442,13 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             send(player, "<white>Use a valid item and a positive whole-number amount.");
             return true;
         }
+        int maximum = ItemTools.maximumGiveAmount(settings("inventory"));
+        if (amount > maximum) {
+            ItemTools.sendGiveLimit(player, maximum);
+            return true;
+        }
 
-        player.getInventory().addItem(new ItemStack(material, amount)).values()
-            .forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
+        ItemTools.giveOrDrop(player, new ItemStack(material), amount);
         send(player, "<white>Gave <#f72a4c>" + amount + " " + material.name().toLowerCase(Locale.ROOT) + "</#f72a4c>.");
         return true;
     }
@@ -1440,11 +1517,41 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         return true;
     }
 
-    private boolean killAll(Player player) {
-        var mobs = player.getWorld().getEntitiesByClass(Mob.class);
-        mobs.forEach(Mob::remove);
-        send(player, "<white>Removed <#f72a4c>" + mobs.size() + "</#f72a4c> mobs.");
+    private boolean killAll(Player player, String[] args) {
+        List<String> values = CommandArgs.withoutFlag(args, "-force");
+        boolean force = CommandArgs.hasFlag(args, "-force");
+        boolean hostileOnly = values.size() == 1 && values.get(0).equalsIgnoreCase("hostile");
+        if (values.size() > 1 || values.size() == 1 && !hostileOnly
+            && !values.get(0).equalsIgnoreCase("all")) {
+            send(player, "<white>Usage: /killall [all|hostile] [-force]");
+            return true;
+        }
+        int removed = 0;
+        int protectedMobs = 0;
+        for (Mob mob : player.getWorld().getEntitiesByClass(Mob.class)) {
+            if (hostileOnly && !(mob instanceof Enemy)) {
+                continue;
+            }
+            if (!force && killAllProtected(mob.getType(),
+                mob instanceof Tameable tameable && tameable.isTamed(),
+                mob.customName() != null, mob.getRemoveWhenFarAway())) {
+                protectedMobs++;
+                continue;
+            }
+            mob.remove();
+            removed++;
+        }
+        send(player, "<white>Removed <#f72a4c>" + removed + "</#f72a4c> mobs"
+            + (protectedMobs == 0 ? "." : "; protected <#f72a4c>" + protectedMobs
+                + "</#f72a4c> (pets, named, villagers, golems, persistent). Add <#f72a4c>-force</#f72a4c> to include them."));
         return true;
+    }
+
+    // Pets, name-tagged mobs, villagers, golems, and persistent mobs survive /killall unless forced.
+    static boolean killAllProtected(EntityType type, boolean tamed, boolean named,
+                                    boolean removeWhenFarAway) {
+        return tamed || named || !removeWhenFarAway || type == EntityType.VILLAGER
+            || type == EntityType.WANDERING_TRADER || type == EntityType.IRON_GOLEM;
     }
 
     private boolean teleportPlayer(Player player, String[] args) {
@@ -1772,8 +1879,20 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         return afk != null && afk.isAfk(player.getUniqueId());
     }
 
+    boolean isVanished(Player player) {
+        return vanished.contains(player.getUniqueId());
+    }
+
+    boolean isMuted(OfflinePlayer player) {
+        return staffTools != null && staffTools.isMuted(player.getUniqueId());
+    }
+
     String pollPlaceholder(String params) {
         return polls == null ? null : polls.placeholder(params);
+    }
+
+    String plainNickname(OfflinePlayer player) {
+        return nicknames != null ? nicknames.plainNickname(player) : player.getName();
     }
 
     private void refreshVanishVisibility(Player viewer) {
@@ -1785,97 +1904,6 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                     viewer.hidePlayer(this, player);
                 }
             });
-    }
-
-    private boolean setTime(Player player, String command) {
-        long time = switch (command) {
-            case "day" -> 1000;
-            case "noon" -> 6000;
-            case "night" -> 13000;
-            default -> 18000;
-        };
-        World world = player.getWorld();
-        cancelTimeTransition(world);
-        if ((command.equals("day") || command.equals("night"))
-            && settings("environment").getBoolean("speedUpEffect.enabled", true)) {
-            transitionTime(world, time);
-        } else {
-            world.setTime(time);
-        }
-        runEnvironmentActions(player, "times", command);
-        return true;
-    }
-
-    private void transitionTime(World world, long target) {
-        long start = Math.floorMod(world.getTime(), MINECRAFT_DAY_TICKS);
-        long distance = forwardTimeDistance(start, target);
-        if (distance == 0) {
-            world.setTime(target);
-            return;
-        }
-        int duration = 100;
-        int period = 1;
-        int steps = Math.max(1, (duration + period - 1) / period);
-        UUID worldId = world.getUID();
-        BukkitRunnable transition = new BukkitRunnable() {
-            private int step;
-
-            @Override
-            public void run() {
-                if (getServer().getWorld(worldId) != world) {
-                    finish();
-                    return;
-                }
-                world.setTime(transitionedTime(start, distance, ++step, steps));
-                if (step == steps) {
-                    finish();
-                }
-            }
-
-            private void finish() {
-                timeTransitions.remove(worldId, this);
-                cancel();
-            }
-        };
-        timeTransitions.put(worldId, transition);
-        transition.runTaskTimer(this, period, period);
-    }
-
-    private void cancelTimeTransition(World world) {
-        BukkitRunnable transition = timeTransitions.remove(world.getUID());
-        if (transition != null) {
-            transition.cancel();
-        }
-    }
-
-    static long forwardTimeDistance(long current, long target) {
-        long normalizedCurrent = Math.floorMod(current, MINECRAFT_DAY_TICKS);
-        long normalizedTarget = Math.floorMod(target, MINECRAFT_DAY_TICKS);
-        return Math.floorMod(normalizedTarget - normalizedCurrent, MINECRAFT_DAY_TICKS);
-    }
-
-    static long transitionedTime(long start, long distance, int step, int steps) {
-        if (step >= steps) {
-            return Math.floorMod(start + distance, MINECRAFT_DAY_TICKS);
-        }
-        long progressed = Math.round(distance * (step / (double) steps));
-        return Math.floorMod(start + progressed, MINECRAFT_DAY_TICKS);
-    }
-
-    private boolean setWeather(Player player, String command) {
-        World world = player.getWorld();
-        world.setStorm(!command.equals("sun"));
-        world.setThundering(command.equals("thunder"));
-        runEnvironmentActions(player, "weather", command);
-        return true;
-    }
-
-    private void runEnvironmentActions(Player player, String section, String command) {
-        String path = section + "." + command + ".commands_when_ran";
-        messageActions.run(player, settings("environment"), path, List.of(
-                "[actionbar] <white>" + (section.equals("times") ? "Time" : "Weather")
-                    + " set to <green>" + titleCase(command) + "</green></white>",
-                "[sound] ui_button_click"));
     }
 
     private void moduleMessage(Player player, String module, String path, String fallback,
@@ -1966,7 +1994,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0, 2);
     }
 
-    private static String titleCase(String value) {
+    static String titleCase(String value) {
         return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
@@ -2102,11 +2130,17 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             if (graves != null) {
                 graves.reload();
             }
+            if (restart != null) {
+                restart.reload();
+            }
             if (serverList != null) {
                 serverList.reload();
             }
             if (permissions != null) {
                 permissions.reloadConfiguration();
+            }
+            if (hoppers != null) {
+                hoppers.reload();
             }
             send(sender, "<white>Rivet configuration reloaded.</white> <white>Loaded config.yml, modules.yml, and <#f72a4c>"
                 + (result.fileCount() - 2) + "</#f72a4c> settings files.</white>");
@@ -2114,11 +2148,34 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                 send(sender, "<white>Module enable/disable changes require a server restart: <#f72a4c>"
                     + String.join(", ", result.changedModules()) + "</#f72a4c>.</white>");
             }
+            List<String> pendingSwitches = pendingRestartSwitches(restartOnlyGameplaySwitches(true),
+                restartOnlyGameplaySwitches(false));
+            if (!pendingSwitches.isEmpty()) {
+                send(sender, "<white>Gameplay switch changes require a server restart: <#f72a4c>"
+                    + String.join(", ", pendingSwitches) + "</#f72a4c>.</white>");
+            }
         } catch (IOException | InvalidConfigurationException exception) {
             getLogger().severe("Rivet reload failed: " + exception.getMessage());
             send(sender, "<white>Reload failed; existing settings remain active. Check the console for the file and error.");
         }
         return true;
+    }
+
+    // These switches register recipes and listeners at startup, so they cannot change live.
+    // Comparing with what is running keeps warning until the restart actually happens.
+    private Map<String, Boolean> restartOnlyGameplaySwitches(boolean running) {
+        Map<String, Boolean> switches = new LinkedHashMap<>();
+        switches.put("autocrafter.enabled", running ? autoCrafter != null
+            : settings("gameplay").getBoolean("autocrafter.enabled", true));
+        switches.put("beacon-tools.enabled", running ? beaconTools != null
+            : settings("gameplay").getBoolean("beacon-tools.enabled", true));
+        return switches;
+    }
+
+    static List<String> pendingRestartSwitches(Map<String, Boolean> running,
+                                               Map<String, Boolean> configured) {
+        return running.keySet().stream()
+            .filter(key -> !running.get(key).equals(configured.get(key))).toList();
     }
 
     boolean moduleEnabled(String module) {
@@ -2171,8 +2228,9 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             case "perm" -> "permissions";
             case "flat", "flatworld", "voidworld", "worldspawn", "setworldspawn", "killall", "findbiome", "top", "tree" -> "worlds";
             case "gmc", "gms", "tp", "tphere", "tppos", "vanish", "fly", "heal", "feed", "god", "flyspeed", "commandspy", "bossbarmsg",
-                 "note", "sameip", "toast" -> "staff";
-            case "day", "night", "noon", "midnight", "sun", "rain", "thunder" -> "environment";
+                 "note", "sameip", "toast", "ban", "tempban", "unban", "mute", "tempmute", "unmute", "kick", "warn",
+                 "history" -> "staff";
+            case "day", "night", "noon", "midnight", "sun", "rain", "thunder", "locktime" -> "environment";
             case "clear", "i", "invsee", "enderchest", "repair", "rename", "lore",
                  "condense", "donate", "giveall", "hat", "scan" -> "inventory";
             case "filter" -> "filter";
@@ -2181,6 +2239,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             case "help" -> "help";
             case "lagg" -> "lagg";
             case "snapshot" -> "snapshots";
+            case "restart" -> "restart";
             default -> null;
         };
     }
@@ -2246,6 +2305,28 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     }
 
     record PlantingReservation(Material material, boolean consumed) {
+    }
+
+    static boolean queuesWaterReplant(PlantingReservation reservation) {
+        return reservation != null && reservation.consumed();
+    }
+
+    enum WaterCropStep { WAIT, REPLANT, REFUND, DISCARD }
+
+    static WaterCropStep waterCropStep(boolean chunkLoaded, boolean alreadyPlanted,
+                                       boolean canReplant, boolean seedConsumed, int elapsedTicks) {
+        boolean expired = elapsedTicks >= WATER_CROP_TIMEOUT_TICKS;
+        if (!chunkLoaded) {
+            // Refunding would load the chunk to drop the seed, so a timed-out entry is dropped.
+            return expired ? WaterCropStep.DISCARD : WaterCropStep.WAIT;
+        }
+        if (alreadyPlanted) {
+            return WaterCropStep.REFUND;
+        }
+        if (canReplant && seedConsumed) {
+            return WaterCropStep.REPLANT;
+        }
+        return expired ? WaterCropStep.REFUND : WaterCropStep.WAIT;
     }
 
     static boolean isDisabledIronGolemPoppyDrop(EntityType type, boolean enabled,

@@ -2,6 +2,10 @@
 # access is intentionally omitted because loading player files behind Paper's
 # back is unsafe and can overwrite newer data.
 
+# Largest amount /i or /giveall may give in one command (per player for /giveall).
+# Items that do not fit are dropped in normal-sized stacks. 2304 is a full inventory of 64-stacks.
+maximum-give-amount: 2304
+
 item-editing:
   maximum-name-length: 50
   maximum-lore-line-length: 100
@@ -27,5 +31,6 @@ messages:
   lore-success: { enabled: true, actions: ['[message] <white>Item lore updated.</white>'] }
   lore-cleared: { enabled: true, actions: ['[message] <white>Item lore cleared.</white>'] }
   lore-line-invalid: { enabled: true, actions: ['[message] <white>That lore line does not exist.</white>'] }
+  hat-binding-curse: { enabled: true, actions: ['[message] <white>Your current helmet has Curse of Binding and cannot be removed.</white>'] }
   hat-success: { enabled: true, actions: ['[message] <white>Equipped the item as your hat.</white>'] }
   invalid-text: { enabled: true, actions: ['[message] <white>Text must be 1-%max% visible characters without control characters.</white>'] }

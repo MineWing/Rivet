@@ -180,6 +180,9 @@ social-spy:
     disabled: { enabled: true, actions: ['[message] <white>Social spy disabled.</white>'] }
 
 ignore:
+  # When true, public chat from an ignored player is hidden too (in addition to /msg and /me).
+  # Senders with rivet.ignore.bypass are always shown.
+  hide-public-chat: true
   messages:
     added: { enabled: true, actions: ['[message] <white>You now ignore <#f72a4c>%player%</#f72a4c>.'] }
     removed: { enabled: true, actions: ['[message] <white>You no longer ignore <#f72a4c>%player%</#f72a4c>.'] }

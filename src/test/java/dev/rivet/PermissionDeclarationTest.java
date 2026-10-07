@@ -20,5 +20,8 @@ public final class PermissionDeclarationTest {
         assertEquals("op", plugin.getString("permissions.rivet.snapshots.default"));
         assertEquals(true, plugin.getBoolean(
             "permissions.rivet.snapshots.children.rivet.snapshots.restore"));
+        assertEquals("op", plugin.getString("permissions.rivet.eggcapture.bypass.default"));
+        assertEquals("op", plugin.getString("permissions." + StaffTools.MODERATION_EXEMPT + ".default"));
+        assertEquals("op", plugin.getString("permissions.rivet.nick.unicode.default"));
     }
 }

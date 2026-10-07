@@ -2,6 +2,7 @@ package dev.rivet;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -70,6 +72,9 @@ final class ChatModule implements Listener {
     private final Map<UUID, RecentMessage> recentMessages = new ConcurrentHashMap<>();
     private final YamlConfiguration socialData;
     private final YamlConfiguration ignoreData;
+    // Immutable per-owner snapshots, replaced wholesale on change, so the async chat thread can read
+    // ignore lists without touching the (non-thread-safe) YamlConfiguration.
+    private final Map<UUID, Set<UUID>> ignoreLists = new ConcurrentHashMap<>();
     private final Map<String, StyleDefinition> colors = new ConcurrentHashMap<>();
     private final Map<String, StyleDefinition> gradients = new ConcurrentHashMap<>();
     private final Map<String, TagDefinition> tags = new ConcurrentHashMap<>();
@@ -86,11 +91,13 @@ final class ChatModule implements Listener {
     private volatile boolean allowCustomHex;
     private volatile boolean allowCustomGradients;
     private volatile boolean allowRainbow;
+    private volatile boolean hideIgnoredPublicChat;
 
     ChatModule(RivetPlugin plugin) {
         this.plugin = plugin;
         socialData = plugin.data("chat");
         ignoreData = plugin.data("ignore");
+        ignoreLists.putAll(ignoreLists(ignoreData));
         reload();
         loadSelections();
         migrateLegacyColors();
@@ -115,6 +122,7 @@ final class ChatModule implements Listener {
         allowCustomHex = config.getBoolean("chat-styles.allow-custom-hex", true);
         allowCustomGradients = config.getBoolean("chat-styles.allow-custom-gradients", true);
         allowRainbow = config.getBoolean("chat-styles.allow-rainbow", true);
+        hideIgnoredPublicChat = config.getBoolean("ignore.hide-public-chat", true);
         loadStyles(config, "chat-styles.colors", colors, false);
         loadStyles(config, "chat-styles.gradients", gradients, true);
         loadTags(config);
@@ -123,12 +131,22 @@ final class ChatModule implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         Player sender = event.getPlayer();
+        if (plugin.isMuted(sender)) {
+            event.setCancelled(true);
+            plugin.getServer().getScheduler().runTask(plugin,
+                () -> send(sender, "<white>You are muted and cannot send chat messages.</white>"));
+            return;
+        }
         String plain = PLAIN.serialize(event.message());
         if (blockedByAntiSpam(sender, plain, System.currentTimeMillis())) {
             event.setCancelled(true);
             plugin.getServer().getScheduler().runTask(plugin,
                 () -> send(sender, "<white>Please wait before sending another similar message.</white>"));
             return;
+        }
+
+        if (hideIgnoredPublicChat && !sender.hasPermission("rivet.ignore.bypass")) {
+            removeIgnoringViewers(event.viewers(), ignoreLists, sender.getUniqueId());
         }
 
         ItemStack held = sender.getInventory().getItemInMainHand().clone();
@@ -195,6 +213,10 @@ final class ChatModule implements Listener {
     }
 
     boolean message(Player sender, String[] args) {
+        if (plugin.isMuted(sender)) {
+            send(sender, "<white>You are muted and cannot send messages.");
+            return true;
+        }
         if (args.length < 2) {
             send(sender, "<white>Usage: /msg &lt;player&gt; &lt;message&gt;");
             return true;
@@ -208,7 +230,7 @@ final class ChatModule implements Listener {
             send(sender, "<white>You cannot message yourself.");
             return true;
         }
-        if (ignores(ignoreData, recipient.getUniqueId(), sender.getUniqueId())
+        if (ignores(ignoreLists, recipient.getUniqueId(), sender.getUniqueId())
             && !sender.hasPermission("rivet.ignore.bypass")) {
             configuredMessage(sender, "ignore.messages.blocked",
                 "<white>That private message could not be delivered.");
@@ -237,6 +259,10 @@ final class ChatModule implements Listener {
     }
 
     boolean me(Player sender, String[] args) {
+        if (plugin.isMuted(sender)) {
+            send(sender, "<white>You are muted and cannot send messages.");
+            return true;
+        }
         if (args.length == 0) {
             send(sender, "<white>Usage: /me &lt;message&gt;");
             return true;
@@ -247,7 +273,7 @@ final class ChatModule implements Listener {
             "<#f72a4c>* %player%</#f72a4c> <white>%message%</white>");
         plugin.getServer().getOnlinePlayers().stream()
             .filter(viewer -> viewer.canSee(sender) || viewer.equals(sender))
-            .filter(viewer -> !ignores(ignoreData, viewer.getUniqueId(), sender.getUniqueId())
+            .filter(viewer -> !ignores(ignoreLists, viewer.getUniqueId(), sender.getUniqueId())
                 || sender.hasPermission("rivet.ignore.bypass"))
             .forEach(viewer -> viewer.sendMessage(MM.deserialize(configured,
                 Placeholder.component("player", sender.displayName()),
@@ -260,7 +286,9 @@ final class ChatModule implements Listener {
             send(sender, "<white>Usage: /r &lt;message&gt;");
             return true;
         }
-        Player recipient = plugin.getServer().getPlayer(replies.get(sender.getUniqueId()));
+        // Paper's getPlayer(UUID) rejects null, and onQuit clears reply targets, so check first.
+        UUID target = replies.get(sender.getUniqueId());
+        Player recipient = target == null ? null : plugin.getServer().getPlayer(target);
         if (recipient == null || !sender.canSee(recipient)) {
             replies.remove(sender.getUniqueId());
             send(sender, "<white>You have nobody online to reply to.");
@@ -317,6 +345,7 @@ final class ChatModule implements Listener {
                 ignoreData.set(path, old);
                 return true;
             }
+            ignoreLists.remove(player.getUniqueId());
             configuredMessage(player, "ignore.messages.cleared",
                 "<white>Your ignore list was cleared.</white>");
             return true;
@@ -345,6 +374,7 @@ final class ChatModule implements Listener {
             ignoreData.set(path, previous);
             return true;
         }
+        ignoreLists.put(player.getUniqueId(), parseUuids(ignored));
         String key = added ? "added" : "removed";
         configuredMessage(player, "ignore.messages." + key,
             added ? "<white>You now ignore <#f72a4c>%player%</#f72a4c>."
@@ -1006,6 +1036,52 @@ final class ChatModule implements Listener {
 
     static boolean ignores(YamlConfiguration data, UUID owner, UUID target) {
         return data.getStringList("ignored." + owner).contains(target.toString());
+    }
+
+    static boolean ignores(Map<UUID, Set<UUID>> ignoreLists, UUID owner, UUID target) {
+        Set<UUID> ignored = ignoreLists.get(owner);
+        return ignored != null && ignored.contains(target);
+    }
+
+    /** Reads every stored ignore list into immutable sets, skipping malformed UUIDs. */
+    static Map<UUID, Set<UUID>> ignoreLists(YamlConfiguration data) {
+        Map<UUID, Set<UUID>> lists = new HashMap<>();
+        ConfigurationSection section = data.getConfigurationSection("ignored");
+        if (section == null) {
+            return lists;
+        }
+        for (String key : section.getKeys(false)) {
+            try {
+                Set<UUID> ignored = parseUuids(section.getStringList(key));
+                if (!ignored.isEmpty()) {
+                    lists.put(UUID.fromString(key), ignored);
+                }
+            } catch (IllegalArgumentException malformed) {
+                // Ignore malformed external edits; the YAML entry is left untouched.
+            }
+        }
+        return lists;
+    }
+
+    private static Set<UUID> parseUuids(List<String> values) {
+        Set<UUID> parsed = new java.util.HashSet<>();
+        for (String value : values) {
+            try {
+                parsed.add(UUID.fromString(value));
+            } catch (IllegalArgumentException malformed) {
+                // Skip malformed entries.
+            }
+        }
+        return Set.copyOf(parsed);
+    }
+
+    /**
+     * Removes every chat viewer who ignores {@code sender}. Viewers are identified through Adventure's
+     * {@link Identity#UUID} pointer, so the console and other non-player audiences always remain.
+     */
+    static void removeIgnoringViewers(Set<Audience> viewers, Map<UUID, Set<UUID>> ignoreLists, UUID sender) {
+        viewers.removeIf(viewer -> viewer.get(Identity.UUID)
+            .map(viewerId -> ignores(ignoreLists, viewerId, sender)).orElse(false));
     }
 
     static boolean shouldReceiveSpy(UUID spy, UUID sender, UUID recipient,

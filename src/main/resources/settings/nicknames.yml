@@ -1,6 +1,23 @@
 maximum-length: 24
+# Regular expression the whole plain-text nickname must match when players set their own nickname.
+# Players with rivet.nick.unicode, and staff setting another player's nickname, skip this check.
+# Use an empty string ('') to allow any characters.
+allowed-pattern: '[A-Za-z0-9_ ]+'
+# Case-insensitive substrings rejected in self-chosen nicknames (also checked with spaces and
+# punctuation removed, so "a_d m-i n" matches "admin"). Staff setting another player's nickname skip
+# this list. Nicknames that match another player's username or nickname are always rejected.
+blocked-words:
+  - admin
+  - owner
+  - moderator
+  - mod
+  - staff
+  - console
 
 messages:
   set: { enabled: true, actions: ['[message] <white>Nickname updated.</white>'] }
   removed: { enabled: true, actions: ['[message] <white>Nickname removed.</white>'] }
   invalid: { enabled: true, actions: ['[message] <white>Nicknames must be 1-%max% visible characters with no control characters.</white>'] }
+  taken: { enabled: true, actions: ["[message] <white>That nickname matches another player's name or nickname.</white>"] }
+  disallowed-characters: { enabled: true, actions: ['[message] <white>Nicknames may only use letters, numbers, spaces and underscores.</white>'] }
+  blocked-word: { enabled: true, actions: ['[message] <white>That nickname contains a word that is not allowed.</white>'] }

@@ -1,4 +1,7 @@
-# Creeper craters are kept in memory until restored or the server restarts.
+# Creeper craters are kept in memory until they are restored, expire, are evicted, or the
+# server stops. A crater that is not restored is released: escrowed container contents drop
+# where each container stood, and blocks whose space is still empty drop as items at the
+# explosion's normal (vanilla) drop chance. Nothing is held across restarts.
 
 core:
   material: echo_shard
@@ -20,9 +23,16 @@ restoration:
   # Rivet escrows these contents before the explosion so they cannot also drop and duplicate.
   restore-container-contents: true
   # Restores signs, banners, decorated pots, and other non-container block entities.
+  # Items held by lecterns, jukeboxes, chiseled bookshelves, decorated pots, shelves, and
+  # campfires are escrowed like container contents. When false, only the block is restored
+  # and those items drop when the explosion happens, as in vanilla.
   restore-other-block-entity-data: true
   total-duration-ticks: 70
   block-flight-ticks: 16
+  # Minutes before an unrestored crater is released. 0 keeps craters until restart or eviction.
+  crater-lifetime-minutes: 30
+  # When more craters are stored, the oldest idle crater is released first. Minimum 1.
+  maximum-craters: 200
 
 explosion-debris:
   enabled: true
