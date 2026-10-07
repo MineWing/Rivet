@@ -37,7 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-final class UtilitiesModule implements Listener {
+final class UtilitiesModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final Color[] CONFETTI_COLORS = {
         Color.fromRGB(0xF94144), Color.fromRGB(0xF8961E),
@@ -298,7 +298,8 @@ final class UtilitiesModule implements Listener {
         playConfetti(event.getLocation().clone().add(0, .5, 0));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         new java.util.HashSet<>(riders).stream().map(plugin.getServer()::getPlayer)
             .filter(java.util.Objects::nonNull).forEach(Player::leaveVehicle);
         riders.clear();

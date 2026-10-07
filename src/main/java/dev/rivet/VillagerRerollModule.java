@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
-final class VillagerRerollModule implements Listener {
+final class VillagerRerollModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final String DEFAULT_PERMISSION = "rivet.villager-reroll";
 
@@ -102,7 +102,8 @@ final class VillagerRerollModule implements Listener {
         });
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         rerolling.clear();
         cleanupLoadedVillagers();
     }

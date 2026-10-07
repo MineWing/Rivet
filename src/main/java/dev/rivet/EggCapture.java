@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
-final class EggCapture implements Listener {
+final class EggCapture implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final int ANIMATION_TICKS = 28;
 
@@ -157,7 +157,8 @@ final class EggCapture implements Listener {
             "actionbar", "<white>Captured creatures cannot be used on spawners.</white>");
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         captures.values().forEach(capture -> {
             restore(capture);
             give(capture.player, new ItemStack(Material.EGG), capture.mob.getLocation());

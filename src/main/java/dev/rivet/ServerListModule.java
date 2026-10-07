@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-final class ServerListModule implements Listener {
+final class ServerListModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
 
     private final RivetPlugin plugin;
@@ -26,7 +26,8 @@ final class ServerListModule implements Listener {
         reload();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         YamlConfiguration settings = plugin.settings("server-list");
         Selection selection = Selection.parse(settings.getString("selection", "ROTATE"));
         int rotationSeconds = Math.max(1, settings.getInt("rotation-seconds", 60));

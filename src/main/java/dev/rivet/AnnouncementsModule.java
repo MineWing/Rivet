@@ -7,7 +7,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 
-final class AnnouncementsModule {
+final class AnnouncementsModule implements RivetModule {
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
     private List<String> announcements = List.of();
@@ -20,7 +20,8 @@ final class AnnouncementsModule {
         reload();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         shutdown();
         ConfigurationSection section = settings.getConfigurationSection("announcements");
         announcements = section == null ? List.of() : section.getKeys(false).stream()
@@ -33,7 +34,8 @@ final class AnnouncementsModule {
         index = 0;
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         if (task != null) {
             task.cancel();
             task = null;

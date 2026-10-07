@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class TreeFeller implements Listener {
+final class TreeFeller implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     // ponytail: hard caps protect one server tick; batch larger custom trees/veins if they become a real use case.
     private static final int MAX_LOGS = 96;
@@ -525,7 +525,8 @@ final class TreeFeller implements Listener {
         return Math.max(1, settings.getInt(path, fallback));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         activeBlocks.clear();
     }
 

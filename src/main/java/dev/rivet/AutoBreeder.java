@@ -69,7 +69,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-final class AutoBreeder implements Listener {
+final class AutoBreeder implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
     private static final String CONFIG_PATH = "auto-breeders";
@@ -377,7 +377,8 @@ final class AutoBreeder implements Listener {
         }
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         task.cancel();
         inventories.forEach(this::persist);
         saveNow();
@@ -385,7 +386,8 @@ final class AutoBreeder implements Listener {
         recipeKeys.forEach(Bukkit::removeRecipe);
     }
 
-    void reloadGui() {
+    @Override
+    public void reload() {
         inventories.forEach(this::persist);
         saveNow();
         inventories.values().forEach(inventory ->

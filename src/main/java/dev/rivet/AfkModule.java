@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-final class AfkModule implements Listener {
+final class AfkModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final Set<UUID> afk = new HashSet<>();
@@ -204,7 +204,8 @@ final class AfkModule implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> activity(event.getPlayer()));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         task.cancel();
         plugin.getServer().getOnlinePlayers().forEach(player -> {
             player.setSleepingIgnored(false);

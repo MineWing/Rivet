@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-final class ItemTools {
+final class ItemTools implements RivetModule {
     static final int DEFAULT_MAXIMUM_GIVE_AMOUNT = 2_304;
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final MiniMessage FORMATTED = RivetMiniMessage.builder().tags(TagResolver.resolver(

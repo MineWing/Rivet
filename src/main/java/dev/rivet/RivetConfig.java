@@ -24,18 +24,8 @@ final class RivetConfig {
         "(?i)<(?:/?(?:black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|"
             + "dark_gray|blue|green|aqua|red|light_purple|yellow)|/?gradient(?::[^>]*)?|"
             + "/?rainbow(?::[^>]*)?|/?#(?!f72a4c)[0-9a-f]{6})>");
-    static final List<String> MODULES = List.of(
-        "chat", "homes", "warps", "graves", "breeders", "egg-capture", "creeper-restoration", "tree-feller",
-        "mob-heads", "villager-reroll", "holograms", "permissions", "worlds", "staff",
-        "environment", "inventory", "spawn", "tpa", "kits", "afk", "join-leave",
-        "announcements", "nicknames", "statistics", "trash", "utilities", "poses",
-        "backpacks", "daily", "rtp", "near", "filter", "help", "lagg", "death-messages",
-        "snapshots", "restart", "magnet", "polls", "server-list", "fishing");
-    static final Set<String> ENABLED_BY_DEFAULT = Set.of(
-        "chat", "homes", "warps", "graves", "breeders", "egg-capture", "creeper-restoration", "tree-feller",
-        "mob-heads", "villager-reroll", "holograms", "environment", "spawn", "afk", "join-leave",
-        "nicknames", "statistics", "trash", "utilities", "filter", "help", "lagg",
-        "death-messages", "snapshots", "magnet", "polls", "server-list", "fishing");
+    static final List<String> MODULES = ModuleCatalog.switches();
+    static final Set<String> ENABLED_BY_DEFAULT = ModuleCatalog.enabledByDefault();
     static final List<String> SETTINGS = settingsFiles();
     // Data files marked dirty on hot paths are written at most this often (5 seconds).
     private static final long DATA_FLUSH_TICKS = 100;

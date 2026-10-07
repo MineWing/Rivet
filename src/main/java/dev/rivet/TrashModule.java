@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class TrashModule implements Listener {
+final class TrashModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;

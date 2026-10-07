@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
-final class DailyModule {
+final class DailyModule implements RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;

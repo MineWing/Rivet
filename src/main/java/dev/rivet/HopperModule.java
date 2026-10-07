@@ -16,7 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-final class HopperModule implements Listener {
+final class HopperModule implements Listener, RivetModule {
     private static final int DEFAULT_TRANSFER_COOLDOWN = 2;
 
     private final RivetPlugin plugin;
@@ -33,7 +33,8 @@ final class HopperModule implements Listener {
     }
 
     // Always registered so /rivet reload can switch hoppers on or off without a restart.
-    void reload() {
+    @Override
+    public void reload() {
         enabled = settings.getBoolean("hoppers.enabled", true);
         transferCooldown = transferCooldown(settings.getInt(
             "hoppers.transfer-cooldown-ticks", DEFAULT_TRANSFER_COOLDOWN));

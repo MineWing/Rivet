@@ -16,7 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
-final class HelpModule {
+final class HelpModule implements RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final int DEFAULT_PAGE_SIZE = 6;
     private static final int MINIMUM_PAGE_SIZE = 3;
@@ -122,7 +122,7 @@ final class HelpModule {
                 usage = "/" + usage;
             }
             declared.add(new CommandEntry(name, usage, command.getDescription(),
-                RivetPlugin.moduleForCommand(name), command.getPermission()));
+                ModuleCatalog.moduleForCommand(name), command.getPermission()));
         });
         return visible(declared, plugin::moduleEnabled, sender::hasPermission);
     }

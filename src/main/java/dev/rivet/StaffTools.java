@@ -43,7 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-final class StaffTools implements Listener {
+final class StaffTools implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     static final String MODERATION_EXEMPT = "rivet.moderation.exempt";
     private final RivetPlugin plugin;
@@ -1150,7 +1150,8 @@ final class StaffTools implements Listener {
                 Placeholder.unparsed("command", event.getMessage()))));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         new ArrayList<>(bossBars).forEach(this::remove);
         new HashMap<>(temporaryToasts).forEach((key, toast) ->
             cleanupToast(key, toast.advancement(), toast.players()));

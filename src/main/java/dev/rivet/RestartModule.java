@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-final class RestartModule {
+final class RestartModule implements RivetModule {
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
     private final List<BukkitTask> tasks = new ArrayList<>();
@@ -44,7 +44,8 @@ final class RestartModule {
         reload();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         cancelTasks();
         schedules = parseSchedules(settings.getStringList("schedules"));
         warningSeconds = warningSeconds(settings.getIntegerList("warning-seconds"));
@@ -61,7 +62,8 @@ final class RestartModule {
         scheduleUpcoming();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         cancelTasks();
     }
 

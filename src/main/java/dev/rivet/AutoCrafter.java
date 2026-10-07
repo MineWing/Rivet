@@ -28,7 +28,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
-final class AutoCrafter implements Listener {
+final class AutoCrafter implements Listener, RivetModule {
     private final RivetPlugin plugin;
     private final NamespacedKey marker;
     private final NamespacedKey selection;
@@ -366,7 +366,8 @@ final class AutoCrafter implements Listener {
         }
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         task.cancel();
         List.copyOf(loaded).forEach(this::forget);
         Bukkit.removeRecipe(marker);

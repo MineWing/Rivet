@@ -99,48 +99,8 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     private final Set<UUID> biomeSearches = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Map<WaterCropKey, PendingWaterCrop> pendingWaterCrops = new HashMap<>();
     private BukkitTask waterCropTask;
-    private ChatModule chat;
-    private AutoCrafter autoCrafter;
-    private BeaconTools beaconTools;
-    private AutoBreeder autoBreeder;
-    private EggCapture eggCapture;
-    private VillagerRerollModule villagerReroll;
-    private CreeperRestoration creeperRestoration;
-    private GraveModule graves;
-    private HologramModule holograms;
-    private PermissionModule permissions;
-    private TreeFeller treeFeller;
     private DelayedTeleport delayedTeleports;
-    private SpawnModule spawn;
-    private TpaModule tpa;
-    private KitsModule kits;
-    private AfkModule afk;
-    private JoinLeaveModule joinLeave;
-    private AnnouncementsModule announcements;
-    private NicknameModule nicknames;
-    private StatisticsModule statistics;
-    private TrashModule trash;
-    private UtilitiesModule utilities;
-    private PosesModule poses;
-    private BackpacksModule backpacks;
-    private DailyModule daily;
-    private RtpModule rtp;
-    private NearModule near;
-    private ItemTools itemTools;
-    private ScanModule scans;
-    private StaffTools staffTools;
-    private FilterModule filter;
-    private HelpModule help;
-    private HopperModule hoppers;
-    private LaggModule lagg;
-    private DeathMessagesModule deathMessages;
-    private FishingModule fishing;
-    private SnapshotModule snapshots;
-    private EnvironmentModule environment;
-    private RestartModule restart;
-    private MagnetModule magnet;
-    private PollModule polls;
-    private ServerListModule serverList;
+    private ModuleRegistry modules;
     private GuiActions guiActions;
     private MessageActions messageActions;
     private RivetConfig files;
@@ -169,167 +129,16 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             delayedTeleports = new DelayedTeleport(this);
             getServer().getPluginManager().registerEvents(delayedTeleports, this);
         }
-        if (settings("gameplay").getBoolean("autocrafter.enabled", true)) {
-            autoCrafter = new AutoCrafter(this);
-            getServer().getPluginManager().registerEvents(autoCrafter, this);
-        }
-        if (settings("gameplay").getBoolean("beacon-tools.enabled", true)) {
-            beaconTools = new BeaconTools(this);
-            getServer().getPluginManager().registerEvents(beaconTools, this);
-        }
-        if (moduleEnabled("breeders")) {
-            autoBreeder = new AutoBreeder(this);
-            getServer().getPluginManager().registerEvents(autoBreeder, this);
-        }
-        if (moduleEnabled("egg-capture")) {
-            eggCapture = new EggCapture(this);
-            getServer().getPluginManager().registerEvents(eggCapture, this);
-        }
-        if (moduleEnabled("villager-reroll")) {
-            villagerReroll = new VillagerRerollModule(this);
-            getServer().getPluginManager().registerEvents(villagerReroll, this);
-        }
-        if (moduleEnabled("creeper-restoration")) {
-            creeperRestoration = new CreeperRestoration(this);
-            getServer().getPluginManager().registerEvents(creeperRestoration, this);
-        }
-        if (moduleEnabled("permissions")) {
-            permissions = new PermissionModule(this);
-            getServer().getPluginManager().registerEvents(permissions, this);
-        }
-        if (moduleEnabled("chat")) {
-            chat = new ChatModule(this);
-            getServer().getPluginManager().registerEvents(chat, this);
-        }
-        if (moduleEnabled("graves")) {
-            graves = new GraveModule(this, delayedTeleports);
-            getServer().getPluginManager().registerEvents(graves, this);
-        }
-        if (moduleEnabled("holograms")) {
-            holograms = new HologramModule(this);
-            getServer().getPluginManager().registerEvents(holograms, this);
-        }
-        if (moduleEnabled("tree-feller")) {
-            treeFeller = new TreeFeller(this);
-            getServer().getPluginManager().registerEvents(treeFeller, this);
-        }
-        if (moduleEnabled("spawn")) {
-            spawn = new SpawnModule(this, delayedTeleports);
-            getServer().getPluginManager().registerEvents(spawn, this);
-        }
-        if (moduleEnabled("tpa")) {
-            tpa = new TpaModule(this, delayedTeleports);
-            getServer().getPluginManager().registerEvents(tpa, this);
-        }
-        if (moduleEnabled("kits")) {
-            kits = new KitsModule(this);
-        }
-        if (moduleEnabled("nicknames")) {
-            nicknames = new NicknameModule(this);
-            getServer().getPluginManager().registerEvents(nicknames, this);
-        }
-        if (moduleEnabled("afk")) {
-            afk = new AfkModule(this);
-            getServer().getPluginManager().registerEvents(afk, this);
-        }
-        if (moduleEnabled("join-leave")) {
-            joinLeave = new JoinLeaveModule(this);
-            getServer().getPluginManager().registerEvents(joinLeave, this);
-        }
-        if (moduleEnabled("announcements")) {
-            announcements = new AnnouncementsModule(this);
-        }
-        if (moduleEnabled("lagg")) {
-            lagg = new LaggModule(this);
-        }
-        if (moduleEnabled("snapshots")) {
-            try {
-                snapshots = new SnapshotModule(this);
-                getServer().getPluginManager().registerEvents(snapshots, this);
-            } catch (java.sql.SQLException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE,
-                    "Could not open Rivet's inventory snapshot storage", exception);
-                getServer().getPluginManager().disablePlugin(this);
-                return;
-            }
-        }
-        if (moduleEnabled("death-messages")) {
-            deathMessages = new DeathMessagesModule(this);
-            getServer().getPluginManager().registerEvents(deathMessages, this);
-        }
-        if (moduleEnabled("fishing")) {
-            fishing = new FishingModule(this);
-            getServer().getPluginManager().registerEvents(fishing, this);
-        }
-        if (moduleEnabled("statistics")) {
-            statistics = new StatisticsModule(this);
-            getServer().getPluginManager().registerEvents(statistics, this);
-        }
-        if (moduleEnabled("trash")) {
-            trash = new TrashModule(this);
-            getServer().getPluginManager().registerEvents(trash, this);
-        }
-        if (moduleEnabled("utilities")) {
-            utilities = new UtilitiesModule(this);
-            getServer().getPluginManager().registerEvents(utilities, this);
-        }
-        if (moduleEnabled("poses")) {
-            poses = new PosesModule(this);
-            getServer().getPluginManager().registerEvents(poses, this);
-        }
-        if (moduleEnabled("backpacks")) {
-            backpacks = new BackpacksModule(this);
-            getServer().getPluginManager().registerEvents(backpacks, this);
-        }
-        if (moduleEnabled("daily")) {
-            daily = new DailyModule(this);
-        }
-        if (moduleEnabled("rtp")) {
-            rtp = new RtpModule(this, delayedTeleports);
-        }
-        if (moduleEnabled("near")) {
-            near = new NearModule(this);
-        }
-        if (moduleEnabled("inventory")) {
-            itemTools = new ItemTools(this);
-            scans = new ScanModule(this);
-        }
-        if (moduleEnabled("filter")) {
-            filter = new FilterModule(this);
-            getServer().getPluginManager().registerEvents(filter, this);
-        }
-        if (moduleEnabled("help")) {
-            help = new HelpModule(this);
-        }
-        // Always registered; hoppers.enabled is checked per event so /rivet reload can toggle it.
-        hoppers = new HopperModule(this);
-        getServer().getPluginManager().registerEvents(hoppers, this);
-        if (moduleEnabled("staff")) {
-            staffTools = new StaffTools(this);
-            getServer().getPluginManager().registerEvents(staffTools, this);
-        }
-        if (moduleEnabled("environment")) {
-            environment = new EnvironmentModule(this);
-        }
-        if (moduleEnabled("restart")) {
-            restart = new RestartModule(this);
-        }
-        if (moduleEnabled("magnet")) {
-            magnet = new MagnetModule(this);
-        }
-        if (moduleEnabled("polls")) {
-            polls = new PollModule(this);
-            getServer().getPluginManager().registerEvents(polls, this);
-        }
-        if (moduleEnabled("server-list")) {
-            serverList = new ServerListModule(this);
-            getServer().getPluginManager().registerEvents(serverList, this);
+        modules = new ModuleRegistry(this);
+        if (!modules.start()) {
+            return;
         }
         getServer().getPluginManager().registerEvents(this, this);
+        PermissionModule permissions = module(PermissionModule.class);
         if (permissions != null) {
             getServer().getOnlinePlayers().forEach(permissions::apply);
         }
-        if (nicknames != null) {
+        if (module(NicknameModule.class) != null) {
             getServer().getOnlinePlayers().forEach(this::refreshDisplayName);
         }
         if (moduleEnabled("worlds")) {
@@ -348,80 +157,15 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         getServer().getOnlinePlayers().stream()
             .filter(player -> flightEnabled.contains(player.getUniqueId()))
             .forEach(this::disableFlight);
-        if (autoCrafter != null) autoCrafter.shutdown();
-        if (beaconTools != null) beaconTools.shutdown();
-        if (autoBreeder != null) {
-            autoBreeder.shutdown();
-        }
-        if (eggCapture != null) {
-            eggCapture.shutdown();
-        }
-        if (villagerReroll != null) {
-            villagerReroll.shutdown();
-        }
-        if (creeperRestoration != null) {
-            creeperRestoration.shutdown();
-        }
-        if (treeFeller != null) {
-            treeFeller.shutdown();
-        }
-        if (graves != null) {
-            graves.shutdown();
-        }
-        if (tpa != null) {
-            tpa.shutdown();
-        }
-        if (announcements != null) {
-            announcements.shutdown();
-        }
-        if (lagg != null) {
-            lagg.shutdown();
-        }
-        if (snapshots != null) {
-            snapshots.shutdown();
-        }
-        if (afk != null) {
-            afk.shutdown();
-        }
-        if (poses != null) {
-            poses.shutdown();
-        }
-        if (backpacks != null) {
-            backpacks.shutdown();
-        }
-        if (rtp != null) {
-            rtp.shutdown();
-        }
-        if (utilities != null) {
-            utilities.shutdown();
-        }
-        if (staffTools != null) {
-            staffTools.shutdown();
-        }
-        if (filter != null) {
-            filter.shutdown();
-        }
-        if (scans != null) {
-            scans.shutdown();
+        if (modules != null) {
+            modules.shutdown();
         }
         if (guiActions != null) {
             guiActions.shutdown();
         }
         biomeSearches.clear();
-        if (nicknames != null) {
-            nicknames.shutdown();
-        }
         if (delayedTeleports != null) {
             delayedTeleports.shutdown();
-        }
-        if (environment != null) {
-            environment.shutdown();
-        }
-        if (restart != null) {
-            restart.shutdown();
-        }
-        if (magnet != null) {
-            magnet.shutdown();
         }
         shutdownWaterCropReplanting();
         // Last: modules above may have marked data dirty; write it before the server stops.
@@ -434,19 +178,36 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         return guiActions;
     }
 
+    DelayedTeleport delayedTeleports() {
+        return delayedTeleports;
+    }
+
+    /** The running instance of a module, or {@code null} when it is switched off. */
+    <T extends RivetModule> T module(Class<T> type) {
+        return modules == null ? null : modules.get(type);
+    }
+
     ChatMetadata chatMetadata(Player player) {
+        PermissionModule permissions = module(PermissionModule.class);
         return permissions == null ? ChatMetadata.empty() : permissions.chatMetadata(player.getUniqueId());
     }
 
     Component chatDisplayName(Player player, Component externalName) {
-        if (permissions == null) {
+        if (module(PermissionModule.class) == null) {
             return externalName;
         }
-        Component name = nicknames == null ? Component.text(player.getName()) : nicknames.displayName(player);
-        if (afk != null && afk.isAfk(player.getUniqueId()) && afk.showIndicator()) {
-            name = name.append(afk.indicator());
-        }
-        return name;
+        return withAfkIndicator(player, nickname(player));
+    }
+
+    private Component nickname(Player player) {
+        NicknameModule nicknames = module(NicknameModule.class);
+        return nicknames == null ? Component.text(player.getName()) : nicknames.displayName(player);
+    }
+
+    private Component withAfkIndicator(Player player, Component name) {
+        AfkModule afk = module(AfkModule.class);
+        return afk != null && afk.isAfk(player.getUniqueId()) && afk.showIndicator()
+            ? name.append(afk.indicator()) : name;
     }
 
     MessageActions messageActions() {
@@ -641,56 +402,6 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (name.equals("rivet")) {
             return adminCommand(sender, args);
         }
-        String module = moduleForCommand(name);
-        if (commandDisabled(name, this::moduleEnabled)) {
-            send(sender, "<white>The <#f72a4c>" + module + "</#f72a4c> module is disabled.");
-            return true;
-        }
-        if (name.equals("lagg")) {
-            return lagg.command(sender, args);
-        }
-        if (name.equals("snapshot")) {
-            return snapshots.command(sender, args);
-        }
-        if (name.equals("perm")) {
-            return permissions.command(sender, args);
-        }
-        if (name.equals("hologram")) {
-            return holograms.command(sender, args);
-        }
-        if (name.equals("help")) {
-            return help.command(sender, args);
-        }
-        if (name.equals("nick")) {
-            return nicknames.command(sender, args);
-        }
-        if (name.equals("stats")) {
-            return statistics.command(sender, args);
-        }
-        if (name.equals("playtime")) {
-            return statistics.playtime(sender, args);
-        }
-        if (name.equals("seen")) {
-            return statistics.seen(sender, args);
-        }
-        if (name.equals("givebreeder")) {
-            return autoBreeder.command(sender, args);
-        }
-        if (name.equals("clearhologram")) {
-            return autoBreeder.clearHolograms(sender);
-        }
-        if (name.equals("restorationcore")) {
-            return creeperRestoration.command(sender, args);
-        }
-        if (name.equals("scan")) {
-            return scans.command(sender, args);
-        }
-        if (name.equals("restart")) {
-            return restart.command(sender, args);
-        }
-        if (name.equals("poll")) {
-            return polls.command(sender, args);
-        }
         if (!(sender instanceof Player player)) {
             send(sender, "<white>This command is only available to players.");
             return true;
@@ -705,6 +416,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             return true;
         }
 
+        // Module commands are routed by ModuleRegistry; these are the ones RivetPlugin still hosts.
         return switch (name) {
             case "flat" -> legacyFlat(player);
             case "flatworld" -> flatWorld(player, args);
@@ -717,70 +429,19 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             case "setwarp" -> setWarp(player, args);
             case "warp" -> warp(player, args);
             case "delwarp" -> deleteWarp(player, args);
-            case "clear" -> itemTools.clear(player, args);
             case "i" -> giveItem(player, args);
-            case "condense" -> itemTools.condense(player, args);
-            case "donate" -> itemTools.donate(player, args);
-            case "giveall" -> itemTools.giveAll(player, args);
             case "killall" -> killAll(player, args);
-            case "day", "night", "noon", "midnight", "sun", "rain", "thunder", "locktime" ->
-                environment.command(player, name, args);
-            case "msg" -> chat.message(player, args);
-            case "r" -> chat.reply(player, args);
-            case "socialspy" -> chat.socialSpy(player, args);
-            case "ignore" -> chat.ignore(player, args);
-            case "chatcolor" -> chat.chatColor(player, args);
-            case "tag" -> chat.tag(player, args);
-            case "me" -> chat.me(player, args);
             case "tp" -> teleportPlayer(player, args);
             case "tphere" -> teleportPlayerHere(player, args);
             case "tppos" -> teleportPosition(player, args);
             case "vanish" -> toggleVanish(player);
             case "fly" -> toggleFlight(player, args);
-            case "heal" -> staffTools.heal(player, args);
-            case "feed" -> staffTools.feed(player, args);
-            case "god" -> staffTools.god(player, args);
-            case "flyspeed" -> staffTools.flySpeed(player, args);
-            case "commandspy" -> staffTools.commandSpy(player, args);
-            case "bossbarmsg" -> staffTools.bossBar(player, args);
-            case "note" -> staffTools.note(player, args);
-            case "sameip" -> staffTools.sameIp(player, args);
-            case "toast" -> staffTools.toast(player, args);
-            case "ban" -> staffTools.ban(player, args);
-            case "tempban" -> staffTools.tempBan(player, args);
-            case "unban" -> staffTools.unban(player, args);
-            case "mute" -> staffTools.mute(player, args);
-            case "tempmute" -> staffTools.tempMute(player, args);
-            case "unmute" -> staffTools.unmute(player, args);
-            case "kick" -> staffTools.kick(player, args);
-            case "warn" -> staffTools.warn(player, args);
-            case "history" -> staffTools.history(player, args);
-            case "spawn", "setspawn" -> spawn.command(player, name, args);
-            case "tpa", "tpahere", "tpaccept", "tpdeny" -> tpa.command(player, name, args);
-            case "kit" -> kits.command(player, args);
-            case "back" -> graves.back(player, args);
-            case "afk" -> afk.command(player, args);
-            case "afkcheck" -> afk.check(player, args);
             case "invsee" -> inventoryView(player, args);
             case "enderchest" -> enderChest(player, args);
-            case "repair" -> itemTools.repair(player, args);
-            case "hat" -> itemTools.hat(player, args);
-            case "rename" -> itemTools.rename(player, args);
-            case "lore" -> itemTools.lore(player, args);
-            case "trash" -> trash.command(player, args);
-            case "craft", "anvil", "smithing", "stonecutter", "grindstone", "jump", "list", "nv", "ping", "ride" ->
-                utilities.command(player, name, args);
-            case "sit", "lay", "crawl" -> poses.command(player, name, args);
             case "head" -> playerHead(player, args);
-            case "backpack" -> backpacks.command(player, args);
-            case "daily" -> daily.command(player, args);
-            case "rtp" -> rtp.command(player, args);
-            case "near" -> near.command(player, args);
             case "findbiome" -> findBiome(player, args);
             case "top" -> top(player, args);
             case "tree" -> tree(player, args);
-            case "filter" -> filter.command(player, args);
-            case "magnet" -> magnet.command(player, args);
             default -> false;
         };
     }
@@ -788,19 +449,13 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                       @NotNull String alias, @NotNull String[] args) {
-        if (!moduleEnabled(moduleForCommand(command.getName()))) {
-            return List.of();
-        }
         List<String> choices;
         try {
             choices = switch (command.getName()) {
-                case "perm" -> permissions.completions(args);
-                case "hologram" -> holograms.completions(args);
                 case "flatworld" -> args.length == 1 ? List.of("create", "list", "reset", "tp")
                     : args.length == 2 && args[0].equalsIgnoreCase("tp") ? testWorlds(null)
                     : args.length == 2 && args[0].equalsIgnoreCase("reset") ? testWorlds("flat") : List.of();
                 case "voidworld" -> args.length == 1 ? List.of("create") : List.of();
-                case "locktime" -> environment.completions(args);
                 case "home", "delhome" -> args.length == 1 && sender instanceof Player player
                     ? homeNames(player) : List.of();
                 case "warp", "delwarp" -> args.length == 1 ? warpNames() : List.of();
@@ -808,74 +463,19 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
                     .filter(material -> material.isItem() && !material.isAir())
                     .map(material -> material.name().toLowerCase(Locale.ROOT)).sorted().toList()
                     : args.length == 2 ? List.of("1", "16", "32", "64") : List.of();
-                case "givebreeder" -> autoBreeder.completions(sender, args);
-                case "restorationcore" -> creeperRestoration.completions(sender, args);
-                case "scan" -> scans.completions(sender, args);
-                case "restart" -> restart.completions(sender, args);
-                case "poll" -> polls.completions(sender, args);
-                case "msg", "tp", "tphere" -> args.length == 1 ? getServer().getOnlinePlayers().stream()
-                    .filter(player -> !(sender instanceof Player viewer) || viewer.canSee(player))
-                    .map(Player::getName).sorted(String.CASE_INSENSITIVE_ORDER).toList() : List.of();
+                case "tp", "tphere" -> args.length == 1 ? visiblePlayerNames(sender) : List.of();
                 case "tppos" -> playerCoordinateCompletions(sender, args);
-                case "ignore" -> sender instanceof Player player
-                    ? chat.ignoreCompletions(player, args) : List.of();
-                case "chatcolor" -> sender instanceof Player player
-                    ? chat.chatColorCompletions(player, args) : List.of();
-                case "tag" -> sender instanceof Player player
-                    ? chat.tagCompletions(player, args) : List.of();
-                case "tpa", "tpahere", "tpaccept", "tpdeny" -> sender instanceof Player player
-                    ? tpa.completions(player, command.getName(), args) : List.of();
-                case "kit" -> sender instanceof Player player ? kits.completions(player, args) : List.of();
-                case "nick" -> nicknames.completions(sender, args);
-                case "stats" -> statistics.completions(sender, args);
-                case "playtime" -> statistics.playtimeCompletions(sender, args);
-                case "seen" -> statistics.seenCompletions(sender, args);
                 case "invsee", "enderchest", "head" -> args.length == 1
                     ? getServer().getOnlinePlayers().stream().map(Player::getName)
                         .sorted(String.CASE_INSENSITIVE_ORDER).toList() : List.of();
-                case "rtp" -> sender instanceof Player player ? rtp.completions(player, args) : List.of();
-                case "heal" -> sender instanceof Player player
-                    ? staffTools.completions(player, args, "rivet.heal.others") : List.of();
-                case "feed" -> sender instanceof Player player
-                    ? staffTools.completions(player, args, "rivet.feed.others") : List.of();
-                case "god" -> sender instanceof Player player ? staffTools.godCompletions(player, args) : List.of();
-                case "flyspeed" -> sender instanceof Player player
-                    ? staffTools.flySpeedCompletions(player, args) : List.of();
-                case "bossbarmsg" -> sender instanceof Player player
-                    ? staffTools.bossBarCompletions(player, args) : List.of();
-                case "note" -> sender instanceof Player player
-                    ? staffTools.noteCompletions(player, args) : List.of();
-                case "sameip" -> sender instanceof Player player
-                    ? staffTools.sameIpCompletions(player, args) : List.of();
-                case "toast" -> sender instanceof Player player
-                    ? staffTools.toastCompletions(player, args) : List.of();
-                case "ban", "tempban", "unban", "mute", "tempmute", "unmute", "kick", "warn", "history" ->
-                    sender instanceof Player player
-                        ? staffTools.moderationCompletions(command.getName(), player, args) : List.of();
-                case "ping" -> sender instanceof Player player
-                    ? utilities.completions(player, "ping", args) : List.of();
                 case "top" -> args.length == 1 && sender.hasPermission("rivet.top.others")
-                    ? getServer().getOnlinePlayers().stream()
-                        .filter(player -> !(sender instanceof Player viewer) || viewer.canSee(player))
-                        .map(Player::getName).sorted(String.CASE_INSENSITIVE_ORDER).toList() : List.of();
+                    ? visiblePlayerNames(sender) : List.of();
                 case "tree" -> args.length == 1 ? Arrays.stream(TreeType.values())
                     .map(type -> type.name().toLowerCase(Locale.ROOT)).sorted().toList() : List.of();
-                case "afk", "afkcheck" -> sender instanceof Player player
-                    ? afk.completions(player, command.getName(), args) : List.of();
-                case "clear", "condense", "donate", "giveall" -> sender instanceof Player player
-                    ? itemTools.completions(player, command.getName(), args) : List.of();
                 case "findbiome" -> args.length == 1 ? Registry.BIOME.keyStream()
                     .map(NamespacedKey::getKey).sorted().toList() : List.of();
-                case "filter" -> filter.completions(args);
-                case "help" -> help.completions(sender, args);
-                case "repair" -> args.length == 1 && sender.hasPermission("rivet.repair.all")
-                    ? List.of("all") : List.of();
-                case "rename" -> args.length == 1 ? List.of("clear") : List.of();
-                case "lore" -> args.length == 1 ? List.of("add", "set", "remove", "clear") : List.of();
-                case "lagg" -> args.length == 1 ? List.of("clear", "timer") : List.of();
                 case "killall" -> args.length == 1 ? List.of("all", "hostile", "-force")
                     : args.length == 2 && !args[0].equalsIgnoreCase("-force") ? List.of("-force") : List.of();
-                case "snapshot" -> snapshots.completions(sender, args);
                 case "rivet" -> args.length == 1 ? List.of("reload") : List.of();
                 default -> List.of();
             };
@@ -883,6 +483,13 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
             choices = List.of();
         }
         return completions(choices, args.length == 0 ? "" : args[args.length - 1]);
+    }
+
+    /** Online player names, leaving out anyone the sender cannot see. */
+    static List<String> visiblePlayerNames(CommandSender sender) {
+        return org.bukkit.Bukkit.getOnlinePlayers().stream()
+            .filter(player -> !(sender instanceof Player viewer) || viewer.canSee(player))
+            .map(Player::getName).sorted(String.CASE_INSENSITIVE_ORDER).toList();
     }
 
     private boolean flatWorld(Player player, String[] args) {
@@ -1853,6 +1460,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         if (moduleEnabled("staff")) {
             refreshVanishVisibility(player);
         }
+        HologramModule holograms = module(HologramModule.class);
         if (holograms != null) {
             holograms.refresh(player);
         }
@@ -1865,17 +1473,16 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     }
 
     void refreshDisplayName(Player player) {
-        Component name = nicknames == null ? Component.text(player.getName()) : nicknames.displayName(player);
+        Component name = nickname(player);
+        PermissionModule permissions = module(PermissionModule.class);
         if (permissions != null) {
             name = permissions.decorateName(player, name);
         }
-        if (afk != null && afk.isAfk(player.getUniqueId()) && afk.showIndicator()) {
-            name = name.append(afk.indicator());
-        }
-        player.displayName(name);
+        player.displayName(withAfkIndicator(player, name));
     }
 
     public boolean isAfk(Player player) {
+        AfkModule afk = module(AfkModule.class);
         return afk != null && afk.isAfk(player.getUniqueId());
     }
 
@@ -1884,14 +1491,17 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     }
 
     boolean isMuted(OfflinePlayer player) {
+        StaffTools staffTools = module(StaffTools.class);
         return staffTools != null && staffTools.isMuted(player.getUniqueId());
     }
 
     String pollPlaceholder(String params) {
+        PollModule polls = module(PollModule.class);
         return polls == null ? null : polls.placeholder(params);
     }
 
     String plainNickname(OfflinePlayer player) {
+        NicknameModule nicknames = module(NicknameModule.class);
         return nicknames != null ? nicknames.plainNickname(player) : player.getName();
     }
 
@@ -2109,39 +1719,7 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
         }
         try {
             RivetConfig.ReloadResult result = files.reload();
-            if (chat != null) {
-                chat.reload();
-            }
-            if (autoBreeder != null) {
-                autoBreeder.reloadGui();
-            }
-            if (backpacks != null) {
-                backpacks.reloadGui();
-            }
-            if (announcements != null) {
-                announcements.reload();
-            }
-            if (lagg != null) {
-                lagg.reload();
-            }
-            if (snapshots != null) {
-                snapshots.reload();
-            }
-            if (graves != null) {
-                graves.reload();
-            }
-            if (restart != null) {
-                restart.reload();
-            }
-            if (serverList != null) {
-                serverList.reload();
-            }
-            if (permissions != null) {
-                permissions.reloadConfiguration();
-            }
-            if (hoppers != null) {
-                hoppers.reload();
-            }
+            modules.reload();
             send(sender, "<white>Rivet configuration reloaded.</white> <white>Loaded config.yml, modules.yml, and <#f72a4c>"
                 + (result.fileCount() - 2) + "</#f72a4c> settings files.</white>");
             if (!result.changedModules().isEmpty()) {
@@ -2165,9 +1743,9 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
     // Comparing with what is running keeps warning until the restart actually happens.
     private Map<String, Boolean> restartOnlyGameplaySwitches(boolean running) {
         Map<String, Boolean> switches = new LinkedHashMap<>();
-        switches.put("autocrafter.enabled", running ? autoCrafter != null
+        switches.put("autocrafter.enabled", running ? module(AutoCrafter.class) != null
             : settings("gameplay").getBoolean("autocrafter.enabled", true));
-        switches.put("beacon-tools.enabled", running ? beaconTools != null
+        switches.put("beacon-tools.enabled", running ? module(BeaconTools.class) != null
             : settings("gameplay").getBoolean("beacon-tools.enabled", true));
         return switches;
     }
@@ -2200,53 +1778,6 @@ public final class RivetPlugin extends JavaPlugin implements Listener {
 
     void saveData(String module) throws IOException {
         files.saveData(module);
-    }
-
-    static String moduleForCommand(String command) {
-        return switch (command) {
-            case "msg", "r", "socialspy", "ignore", "chatcolor", "tag", "me" -> "chat";
-            case "sethome", "home", "delhome" -> "homes";
-            case "setwarp", "warp", "delwarp" -> "warps";
-            case "hologram" -> "holograms";
-            case "spawn", "setspawn" -> "spawn";
-            case "tpa", "tpahere", "tpaccept", "tpdeny" -> "tpa";
-            case "kit" -> "kits";
-            case "back" -> "graves";
-            case "afk", "afkcheck" -> "afk";
-            case "nick" -> "nicknames";
-            case "stats", "playtime", "seen" -> "statistics";
-            case "trash" -> "trash";
-            case "craft", "anvil", "smithing", "stonecutter", "grindstone", "jump", "list", "nv", "ping", "ride" -> "utilities";
-            case "sit", "lay", "crawl" -> "poses";
-            case "head" -> "mob-heads";
-            case "backpack" -> "backpacks";
-            case "daily" -> "daily";
-            case "rtp" -> "rtp";
-            case "near" -> "near";
-            case "givebreeder", "clearhologram" -> "breeders";
-            case "restorationcore" -> "creeper-restoration";
-            case "perm" -> "permissions";
-            case "flat", "flatworld", "voidworld", "worldspawn", "setworldspawn", "killall", "findbiome", "top", "tree" -> "worlds";
-            case "gmc", "gms", "tp", "tphere", "tppos", "vanish", "fly", "heal", "feed", "god", "flyspeed", "commandspy", "bossbarmsg",
-                 "note", "sameip", "toast", "ban", "tempban", "unban", "mute", "tempmute", "unmute", "kick", "warn",
-                 "history" -> "staff";
-            case "day", "night", "noon", "midnight", "sun", "rain", "thunder", "locktime" -> "environment";
-            case "clear", "i", "invsee", "enderchest", "repair", "rename", "lore",
-                 "condense", "donate", "giveall", "hat", "scan" -> "inventory";
-            case "filter" -> "filter";
-            case "magnet" -> "magnet";
-            case "poll" -> "polls";
-            case "help" -> "help";
-            case "lagg" -> "lagg";
-            case "snapshot" -> "snapshots";
-            case "restart" -> "restart";
-            default -> null;
-        };
-    }
-
-    static boolean commandDisabled(String command, java.util.function.Predicate<String> enabled) {
-        String module = moduleForCommand(command);
-        return module != null && !enabled.test(module);
     }
 
     static boolean validWorldName(String name) {

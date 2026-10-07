@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
-final class DeathMessagesModule implements Listener {
+final class DeathMessagesModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
 
     private final RivetPlugin plugin;

@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-final class TpaModule implements Listener {
+final class TpaModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final DelayedTeleport teleports;
@@ -61,7 +61,8 @@ final class TpaModule implements Listener {
         cooldowns.remove(player);
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         cleanupTask.cancel();
         requests.clear();
         cooldowns.clear();

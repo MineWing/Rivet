@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-final class ChatModule implements Listener {
+final class ChatModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final MiniMessage SAFE_FORMATTING = RivetMiniMessage.builder().tags(TagResolver.resolver(
         StandardTags.color(), StandardTags.decorations(), StandardTags.gradient(),
@@ -103,7 +103,8 @@ final class ChatModule implements Listener {
         migrateLegacyColors();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         YamlConfiguration config = plugin.settings("chat");
         chatFormat = config.getString("format",
             "%head% %prefix%%tag% %player%%suffix%<dark_gray>: </dark_gray>%message%");

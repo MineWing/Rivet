@@ -23,7 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-final class LaggModule {
+final class LaggModule implements RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final long DEFAULT_INTERVAL_SECONDS = 300;
     private static final long MAX_INTERVAL_SECONDS = Long.MAX_VALUE / 20;
@@ -87,7 +87,8 @@ final class LaggModule {
         return true;
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         shutdown();
         migrateLegacyMessages(settings);
         long interval = cleanupIntervalSeconds(settings.getLong(
@@ -104,7 +105,8 @@ final class LaggModule {
         }, periodTicks, periodTicks));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
         nextCleanupAtMillis = 0;

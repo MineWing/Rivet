@@ -52,7 +52,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
-final class SnapshotModule implements Listener {
+final class SnapshotModule implements Listener, RivetModule {
     static final List<String> BACKUP_REASONS = List.of("ENDER_CHEST", "DEATH", "JOIN", "QUIT",
         "WORLD_CHANGE", "GAMEMODE_CHANGE", "CONTAINER_CLOSE", "MANUAL", "AUTOMATIC");
     private static final int PAGE_SIZE = RivetGui.CONTENT_SLOTS.length;
@@ -140,14 +140,16 @@ final class SnapshotModule implements Listener {
         return List.of();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         migrateLegacyConfiguration(configuration);
         settings = new SnapshotSettings(configuration);
         cleanup(false, null);
         startAutomaticBackups();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         restoresInProgress.clear();
         if (automaticTask != null) {
             automaticTask.cancel();

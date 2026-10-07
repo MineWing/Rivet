@@ -19,7 +19,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
-final class BeaconTools implements Listener {
+final class BeaconTools implements Listener, RivetModule {
     private static final List<Material> BASES = List.of(Material.IRON_BLOCK, Material.GOLD_BLOCK,
         Material.EMERALD_BLOCK, Material.DIAMOND_BLOCK, Material.NETHERITE_BLOCK);
     private final RivetPlugin plugin;
@@ -279,7 +279,8 @@ final class BeaconTools implements Listener {
         player.sendMessage(net.kyori.adventure.text.Component.text(text, RivetPalette.PRIMARY));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         Bukkit.removeRecipe(makerKey);
         Bukkit.getOnlinePlayers().forEach(player -> {
             if (player.getOpenInventory().getTopInventory().getHolder(false) instanceof Menu) player.closeInventory();

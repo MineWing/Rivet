@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-final class GraveModule implements Listener {
+final class GraveModule implements Listener, RivetModule {
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
 
@@ -71,7 +71,8 @@ final class GraveModule implements Listener {
         reload();
     }
 
-    void reload() {
+    @Override
+    public void reload() {
         if (expiryTask != null) {
             expiryTask.cancel();
         }
@@ -346,7 +347,8 @@ final class GraveModule implements Listener {
         }
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         if (expiryTask != null) {
             expiryTask.cancel();
         }

@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-final class StatisticsModule implements Listener {
+final class StatisticsModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration data;

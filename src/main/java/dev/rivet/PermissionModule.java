@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-final class PermissionModule implements Listener {
+final class PermissionModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final String USAGE = "<white>Usage: /perm &lt;user|group|check|tree|listgroups|reload&gt;</white>";
     private final RivetPlugin plugin;
@@ -522,7 +522,8 @@ final class PermissionModule implements Listener {
         return true;
     }
 
-    void reloadConfiguration() {
+    @Override
+    public void reload() {
         groups = plugin.settings("permissions");
         groups.options().pathSeparator('/');
         try {

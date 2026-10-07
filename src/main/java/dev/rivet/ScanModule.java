@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class ScanModule {
+final class ScanModule implements RivetModule {
     private static final TextColor ACCENT = TextColor.color(0xf72a4c);
     private static final Pattern REGION_FILE = Pattern.compile("r\\.(-?\\d+)\\.(-?\\d+)\\.mca");
     private static final int REGION_HEADER_BYTES = 4096;
@@ -160,7 +160,8 @@ final class ScanModule {
         return List.of();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         if (active != null) {
             active.cancelled = true;
             active = null;

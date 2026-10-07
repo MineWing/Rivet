@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-final class RtpModule {
+final class RtpModule implements RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final Set<Material> DANGEROUS = Set.of(Material.LAVA, Material.FIRE,
         Material.SOUL_FIRE, Material.MAGMA_BLOCK, Material.CACTUS, Material.CAMPFIRE,
@@ -86,7 +86,8 @@ final class RtpModule {
             : List.of();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         shutdown = true;
         searching.clear();
     }

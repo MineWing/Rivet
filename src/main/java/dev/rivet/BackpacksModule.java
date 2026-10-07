@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.IntPredicate;
 
-final class BackpacksModule implements Listener {
+final class BackpacksModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
@@ -103,7 +103,8 @@ final class BackpacksModule implements Listener {
         saveNextTick(event.getWhoClicked().getUniqueId(), event.getView().getTopInventory());
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         new HashMap<>(open).forEach((uuid, inventory) -> {
             save(uuid, inventory);
             open.remove(uuid);
@@ -114,7 +115,8 @@ final class BackpacksModule implements Listener {
         });
     }
 
-    void reloadGui() {
+    @Override
+    public void reload() {
         new HashMap<>(open).forEach((uuid, inventory) -> {
             save(uuid, inventory);
             Player player = plugin.getServer().getPlayer(uuid);

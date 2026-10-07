@@ -19,7 +19,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
-final class FishingModule implements Listener {
+final class FishingModule implements Listener, RivetModule {
     private static final Set<Material> FISH = EnumSet.of(
         Material.COD, Material.SALMON, Material.PUFFERFISH, Material.TROPICAL_FISH);
 

@@ -12,7 +12,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.List;
 
-final class JoinLeaveModule implements Listener {
+final class JoinLeaveModule implements Listener, RivetModule {
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;
     private final WelcomeHeadRenderer welcomeHeads;

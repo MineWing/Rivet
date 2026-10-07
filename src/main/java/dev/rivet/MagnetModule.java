@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.UUID;
 
-final class MagnetModule {
+final class MagnetModule implements RivetModule {
     private static final double DEFAULT_RADIUS = 8;
     private static final int DEFAULT_IGNORE_OWN_DROPS_TICKS = 60;
     private final RivetPlugin plugin;
@@ -54,7 +54,8 @@ final class MagnetModule {
         return true;
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         task.cancel();
     }
 

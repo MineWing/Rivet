@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-final class FilterModule implements Listener {
+final class FilterModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration data;
@@ -151,7 +151,8 @@ final class FilterModule implements Listener {
                 Placeholder.unparsed("item", material == null ? "" : display(material)));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         filters.clear();
         lastFeedback.clear();
     }

@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-final class PosesModule implements Listener {
+final class PosesModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final Map<UUID, ActivePose> active = new HashMap<>();
@@ -91,7 +91,8 @@ final class PosesModule implements Listener {
         clear(event.getPlayer());
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         plugin.getServer().getOnlinePlayers().forEach(this::clear);
     }
 

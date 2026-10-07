@@ -9,7 +9,7 @@ import org.bukkit.entity.Player;
 import java.util.Comparator;
 import java.util.List;
 
-final class NearModule {
+final class NearModule implements RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final YamlConfiguration settings;

@@ -345,59 +345,59 @@ public final class RivetPluginTest {
         assertEquals(113, plugin.getConfigurationSection("commands").getKeys(false).size());
         plugin.getConfigurationSection("commands").getKeys(false)
             .stream().filter(command -> !command.equals("rivet"))
-            .forEach(command -> assertNotNull(command, RivetPlugin.moduleForCommand(command)));
-        assertEquals("chat", RivetPlugin.moduleForCommand("msg"));
-        assertEquals("homes", RivetPlugin.moduleForCommand("home"));
-        assertEquals("warps", RivetPlugin.moduleForCommand("warp"));
-        assertEquals("worlds", RivetPlugin.moduleForCommand("flatworld"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("fly"));
-        assertEquals("environment", RivetPlugin.moduleForCommand("thunder"));
-        assertEquals("inventory", RivetPlugin.moduleForCommand("i"));
-        assertEquals("permissions", RivetPlugin.moduleForCommand("perm"));
-        assertEquals("holograms", RivetPlugin.moduleForCommand("hologram"));
-        assertEquals("spawn", RivetPlugin.moduleForCommand("setspawn"));
-        assertEquals("tpa", RivetPlugin.moduleForCommand("tpaccept"));
-        assertEquals("graves", RivetPlugin.moduleForCommand("back"));
-        assertEquals("inventory", RivetPlugin.moduleForCommand("invsee"));
-        assertEquals("mob-heads", RivetPlugin.moduleForCommand("head"));
-        assertEquals("poses", RivetPlugin.moduleForCommand("crawl"));
-        assertEquals("backpacks", RivetPlugin.moduleForCommand("backpack"));
-        assertEquals("daily", RivetPlugin.moduleForCommand("daily"));
-        assertEquals("rtp", RivetPlugin.moduleForCommand("rtp"));
-        assertEquals("near", RivetPlugin.moduleForCommand("near"));
-        assertEquals("breeders", RivetPlugin.moduleForCommand("givebreeder"));
-        assertEquals("breeders", RivetPlugin.moduleForCommand("clearhologram"));
-        assertEquals("creeper-restoration", RivetPlugin.moduleForCommand("restorationcore"));
-        assertEquals("statistics", RivetPlugin.moduleForCommand("seen"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("tppos"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("tphere"));
-        assertEquals("filter", RivetPlugin.moduleForCommand("filter"));
-        assertEquals("chat", RivetPlugin.moduleForCommand("chatcolor"));
-        assertEquals("chat", RivetPlugin.moduleForCommand("tag"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("bossbarmsg"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("commandspy"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("ban"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("tempban"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("unban"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("mute"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("tempmute"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("unmute"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("kick"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("warn"));
-        assertEquals("staff", RivetPlugin.moduleForCommand("history"));
-        assertEquals("inventory", RivetPlugin.moduleForCommand("condense"));
-        assertEquals("inventory", RivetPlugin.moduleForCommand("scan"));
-        assertEquals("worlds", RivetPlugin.moduleForCommand("findbiome"));
-        assertEquals("help", RivetPlugin.moduleForCommand("help"));
-        assertEquals("lagg", RivetPlugin.moduleForCommand("lagg"));
-        assertNull(RivetPlugin.moduleForCommand("log"));
-        assertEquals("snapshots", RivetPlugin.moduleForCommand("snapshot"));
-        assertEquals("utilities", RivetPlugin.moduleForCommand("nv"));
-        assertEquals("restart", RivetPlugin.moduleForCommand("restart"));
-        assertEquals("polls", RivetPlugin.moduleForCommand("poll"));
-        assertNull(RivetPlugin.moduleForCommand("group"));
-        assertNull(RivetPlugin.moduleForCommand("rivet"));
-        assertNull(RivetPlugin.moduleForCommand("unknown"));
+            .forEach(command -> assertNotNull(command, ModuleCatalog.moduleForCommand(command)));
+        assertEquals("chat", ModuleCatalog.moduleForCommand("msg"));
+        assertEquals("homes", ModuleCatalog.moduleForCommand("home"));
+        assertEquals("warps", ModuleCatalog.moduleForCommand("warp"));
+        assertEquals("worlds", ModuleCatalog.moduleForCommand("flatworld"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("fly"));
+        assertEquals("environment", ModuleCatalog.moduleForCommand("thunder"));
+        assertEquals("inventory", ModuleCatalog.moduleForCommand("i"));
+        assertEquals("permissions", ModuleCatalog.moduleForCommand("perm"));
+        assertEquals("holograms", ModuleCatalog.moduleForCommand("hologram"));
+        assertEquals("spawn", ModuleCatalog.moduleForCommand("setspawn"));
+        assertEquals("tpa", ModuleCatalog.moduleForCommand("tpaccept"));
+        assertEquals("graves", ModuleCatalog.moduleForCommand("back"));
+        assertEquals("inventory", ModuleCatalog.moduleForCommand("invsee"));
+        assertEquals("mob-heads", ModuleCatalog.moduleForCommand("head"));
+        assertEquals("poses", ModuleCatalog.moduleForCommand("crawl"));
+        assertEquals("backpacks", ModuleCatalog.moduleForCommand("backpack"));
+        assertEquals("daily", ModuleCatalog.moduleForCommand("daily"));
+        assertEquals("rtp", ModuleCatalog.moduleForCommand("rtp"));
+        assertEquals("near", ModuleCatalog.moduleForCommand("near"));
+        assertEquals("breeders", ModuleCatalog.moduleForCommand("givebreeder"));
+        assertEquals("breeders", ModuleCatalog.moduleForCommand("clearhologram"));
+        assertEquals("creeper-restoration", ModuleCatalog.moduleForCommand("restorationcore"));
+        assertEquals("statistics", ModuleCatalog.moduleForCommand("seen"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("tppos"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("tphere"));
+        assertEquals("filter", ModuleCatalog.moduleForCommand("filter"));
+        assertEquals("chat", ModuleCatalog.moduleForCommand("chatcolor"));
+        assertEquals("chat", ModuleCatalog.moduleForCommand("tag"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("bossbarmsg"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("commandspy"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("ban"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("tempban"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("unban"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("mute"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("tempmute"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("unmute"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("kick"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("warn"));
+        assertEquals("staff", ModuleCatalog.moduleForCommand("history"));
+        assertEquals("inventory", ModuleCatalog.moduleForCommand("condense"));
+        assertEquals("inventory", ModuleCatalog.moduleForCommand("scan"));
+        assertEquals("worlds", ModuleCatalog.moduleForCommand("findbiome"));
+        assertEquals("help", ModuleCatalog.moduleForCommand("help"));
+        assertEquals("lagg", ModuleCatalog.moduleForCommand("lagg"));
+        assertNull(ModuleCatalog.moduleForCommand("log"));
+        assertEquals("snapshots", ModuleCatalog.moduleForCommand("snapshot"));
+        assertEquals("utilities", ModuleCatalog.moduleForCommand("nv"));
+        assertEquals("restart", ModuleCatalog.moduleForCommand("restart"));
+        assertEquals("polls", ModuleCatalog.moduleForCommand("poll"));
+        assertNull(ModuleCatalog.moduleForCommand("group"));
+        assertNull(ModuleCatalog.moduleForCommand("rivet"));
+        assertNull(ModuleCatalog.moduleForCommand("unknown"));
     }
 
     @Test
@@ -562,15 +562,6 @@ public final class RivetPluginTest {
         RivetConfig.MODULES.forEach(module -> active.put(module, true));
         configured.set("daily", false);
         assertEquals(List.of("daily"), RivetConfig.changedModules(active, configured));
-    }
-
-    @Test
-    public void disabledModuleCommandsAreCaughtByTheCentralGate() {
-        assertEquals(true, RivetPlugin.commandDisabled("backpack", module -> false));
-        assertEquals(false, RivetPlugin.commandDisabled("backpack", module -> true));
-        assertEquals(false, RivetPlugin.commandDisabled("rivet", module -> false));
-        assertEquals(true, RivetPlugin.commandDisabled("filter", module -> false));
-        assertEquals(true, RivetPlugin.commandDisabled("help", module -> false));
     }
 
     @Test

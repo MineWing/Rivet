@@ -11,7 +11,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.io.IOException;
 
-final class SpawnModule implements Listener {
+final class SpawnModule implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
     private final DelayedTeleport teleports;

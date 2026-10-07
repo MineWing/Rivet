@@ -29,7 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-final class PollModule implements Listener {
+final class PollModule implements Listener, RivetModule {
     private static final int MAX_DESCRIPTION_LENGTH = 240;
     private final RivetPlugin plugin;
     private final YamlConfiguration data;

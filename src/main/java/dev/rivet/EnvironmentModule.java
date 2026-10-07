@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Time and weather commands: /day, /night, /noon, /midnight, /sun, /rain, /thunder, /locktime. */
-final class EnvironmentModule {
+final class EnvironmentModule implements RivetModule {
     private static final long MINECRAFT_DAY_TICKS = 24_000;
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private final RivetPlugin plugin;
@@ -39,7 +39,8 @@ final class EnvironmentModule {
         return args.length == 1 ? List.of("day", "night", "noon", "midnight", "current", "off") : List.of();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         timeTransitions.values().forEach(BukkitRunnable::cancel);
         timeTransitions.clear();
     }

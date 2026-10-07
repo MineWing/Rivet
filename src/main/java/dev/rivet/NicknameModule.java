@@ -20,7 +20,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-final class NicknameModule implements Listener {
+final class NicknameModule implements Listener, RivetModule {
     private static final MiniMessage FORMATTED = RivetMiniMessage.builder()
         .tags(net.kyori.adventure.text.minimessage.tag.resolver.TagResolver.resolver(
             StandardTags.color(), StandardTags.decorations())).build();
@@ -132,7 +132,8 @@ final class NicknameModule implements Listener {
         return nickname == null ? player.getName() : PLAIN.serialize(FORMATTED.deserialize(nickname));
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         plugin.getServer().getOnlinePlayers().forEach(player -> player.displayName(Component.text(player.getName())));
     }
 

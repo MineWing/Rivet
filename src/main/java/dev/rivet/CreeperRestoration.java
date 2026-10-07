@@ -52,7 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
-final class CreeperRestoration implements Listener {
+final class CreeperRestoration implements Listener, RivetModule {
     private static final MiniMessage MM = RivetMiniMessage.miniMessage();
     private static final int MAX_GIVE_AMOUNT = 2_304;
     private static final long EXPIRY_CHECK_TICKS = 20L * 20;
@@ -238,7 +238,8 @@ final class CreeperRestoration implements Listener {
         return args.length == 2 ? List.of("1", "16", "32", "64") : List.of();
     }
 
-    void shutdown() {
+    @Override
+    public void shutdown() {
         expiryTask.cancel();
         // Finish an in-progress reconstruction so a restart cannot leave half a crater repaired.
         // Every other crater is released so its blocks and escrowed contents drop as items
